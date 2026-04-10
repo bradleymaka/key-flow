@@ -24,7 +24,7 @@ async function callClaude(prompt, maxTokens = 300) {
   return data.content?.[0]?.text || "";
 }
 
-export default function KeyFlow() {
+export default function BrokerAI() {
   const [view, setView] = useState("home");
   const [role, setRole] = useState(null);
   const [listings, setListings] = useState(LISTINGS);
@@ -303,7 +303,7 @@ export default function KeyFlow() {
 
         {/* Topbar */}
         <div className="topbar">
-          <div className="logo" onClick={() => setView("home")}>KeyFlow</div>
+          <div className="logo" onClick={() => setView("home")}>BrokerAI</div>
           <div className="topbar-nav">
             {role === "broker" && <>
               <button className="nav-btn" onClick={() => setView("broker-dashboard")}>Dashboard</button>
