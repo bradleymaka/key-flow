@@ -29,7 +29,39 @@ async function claude(prompt, max=300) {
   return d.content?.[0]?.text?.trim() || "";
 }
 
-export default function BrokerAI() {
+const SkylineLogo = () => (
+  <svg width="180" height="36" viewBox="0 0 260 50" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="nsky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#0a0a1a"/>
+        <stop offset="60%" stopColor="#1a1040"/>
+        <stop offset="100%" stopColor="#2d1b69"/>
+      </linearGradient>
+    </defs>
+    <rect width="260" height="50" fill="url(#nsky)" rx="6"/>
+    <rect x="0" y="38" width="260" height="12" fill="#0a0a1a"/>
+    <rect x="0" y="36" width="260" height="3" fill="#7c3aed" opacity="0.5"/>
+    <rect x="8" y="22" width="8" height="28" fill="#1e1b4b"/>
+    <rect x="10" y="18" width="4" height="5" fill="#1e1b4b"/>
+    <rect x="20" y="28" width="10" height="22" fill="#1e1b4b"/>
+    <rect x="34" y="18" width="8" height="32" fill="#1e1b4b"/>
+    <rect x="36" y="14" width="4" height="6" fill="#1e1b4b"/>
+    <rect x="46" y="24" width="10" height="26" fill="#1e1b4b"/>
+    <rect x="60" y="20" width="7" height="30" fill="#1e1b4b"/>
+    <rect x="71" y="26" width="9" height="24" fill="#1e1b4b"/>
+    <rect x="84" y="16" width="7" height="34" fill="#1e1b4b"/>
+    <rect x="86" y="12" width="3" height="6" fill="#1e1b4b"/>
+    <rect x="21" y="32" width="2" height="2" fill="#fbbf24" opacity="0.9"/>
+    <rect x="35" y="22" width="2" height="2" fill="#a78bfa" opacity="0.9"/>
+    <rect x="48" y="28" width="2" height="2" fill="#fbbf24" opacity="0.7"/>
+    <rect x="62" y="24" width="2" height="2" fill="#a78bfa" opacity="0.8"/>
+    <rect x="85" y="20" width="2" height="2" fill="#fbbf24" opacity="0.9"/>
+    <text x="100" y="28" fontSize="15" fontWeight="700" fill="white" fontFamily="-apple-system,system-ui,sans-serif" letterSpacing="1">REALESTATE<tspan fill="#a78bfa">AI</tspan></text>
+    <text x="100" y="40" fontSize="6" fill="#7c3aed" fontFamily="-apple-system,system-ui,sans-serif" letterSpacing="3" opacity="0.9">NEW YORK CITY</text>
+  </svg>
+);
+
+export default function RealEstateAI() {
   const [listings, setListings] = useState(INIT_LISTINGS);
   const [view, setView] = useState("home");
   const [homeTab, setHomeTab] = useState("rent");
@@ -47,7 +79,6 @@ export default function BrokerAI() {
   const [fBeds, setFBeds] = useState("Any");
   const [fRent, setFRent] = useState(5000);
   const [searchLocation, setSearchLocation] = useState("");
-  const [searchMinPrice, setSearchMinPrice] = useState("");
   const [searchMaxPrice, setSearchMaxPrice] = useState("");
   const [newL, setNewL] = useState({ addr:"", hood:"Williamsburg", beds:"", rent:"", desc:"", photo:"" });
   const [priceHint, setPriceHint] = useState("");
@@ -127,7 +158,7 @@ export default function BrokerAI() {
     if(!contactMsg.trim()){ showToast("Write your message to the broker first","warn"); return; }
     setCoverLoading(true);
     try {
-      const res = await claude(`Write a short, professional cover letter (under 80 words) for a renter applying for this apartment: ${selected.addr}, ${selected.hood}, ${selected.beds}BR, $${selected.rent}/mo. The renter's note: "${contactMsg}". Make it warm, honest, and persuasive. No generic openers.`, 150);
+      const res = await claude(`Write a short, professional cover letter (under 80 words) for a renter applying for: ${selected.addr}, ${selected.hood}, ${selected.beds}BR, $${selected.rent}/mo. Renter note: "${contactMsg}". Warm, honest, persuasive. No generic openers.`, 150);
       setCoverLetter(res);
       showToast("Cover letter written by AI!");
     } catch { showToast("API error — try again","warn"); }
@@ -160,162 +191,162 @@ export default function BrokerAI() {
     showToast("Listing published!");
   }
 
-  function handleHomeSearch() {
-    setView("search");
-    if(searchLocation) setFHood(searchLocation);
-    if(searchMaxPrice) setFRent(parseInt(searchMaxPrice));
-  }
-
   const css = `
     *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;color:#1a1a1a;}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d0d1a;color:#f0f0ff;}
 
-    /* TOP NAV */
-    .topnav{background:#1a3a2a;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
-    .topnav-logo{font-size:20px;font-weight:800;color:#fff;cursor:pointer;letter-spacing:-.5px;}
-    .topnav-logo span{color:#7fe8a8;}
+    .topnav{background:#0a0a1a;border-bottom:1px solid #2d1b69;padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
     .topnav-links{display:flex;gap:4px;align-items:center;}
-    .topnav-link{font-size:13px;font-weight:500;color:rgba(255,255,255,.8);padding:8px 14px;border-radius:6px;cursor:pointer;border:none;background:transparent;}
-    .topnav-link:hover{background:rgba(255,255,255,.1);color:#fff;}
-    .topnav-link.active{color:#fff;background:rgba(255,255,255,.15);}
+    .topnav-link{font-size:13px;font-weight:500;color:rgba(200,180,255,.7);padding:8px 14px;border-radius:6px;cursor:pointer;border:none;background:transparent;font-family:inherit;}
+    .topnav-link:hover{background:rgba(124,58,237,.15);color:#e0d4ff;}
+    .topnav-link.active{color:#e0d4ff;background:rgba(124,58,237,.2);}
     .topnav-actions{display:flex;gap:8px;align-items:center;}
     .topnav-btn{font-size:13px;font-weight:600;padding:7px 16px;border-radius:6px;cursor:pointer;font-family:inherit;}
-    .topnav-btn.ghost{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.4);}
-    .topnav-btn.ghost:hover{border-color:#fff;}
-    .topnav-btn.solid{background:#fff;color:#1a3a2a;border:1.5px solid #fff;}
-    .topnav-btn.solid:hover{background:#e8f5e0;}
+    .topnav-btn.ghost{background:transparent;color:#c4b5fd;border:1.5px solid rgba(196,181,253,.3);}
+    .topnav-btn.ghost:hover{border-color:#c4b5fd;background:rgba(124,58,237,.1);}
+    .topnav-btn.solid{background:#7c3aed;color:#fff;border:1.5px solid #7c3aed;}
+    .topnav-btn.solid:hover{background:#6d28d9;}
 
-    /* HERO */
-    .hero{background:#f0f7f2;padding:64px 24px 56px;text-align:center;border-bottom:1px solid #ddeee5;}
-    .hero-eyebrow{font-size:13px;font-weight:600;color:#1a3a2a;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px;}
-    .hero-title{font-size:clamp(32px,5vw,52px);font-weight:800;color:#1a1a1a;line-height:1.1;margin-bottom:10px;letter-spacing:-.5px;}
-    .hero-title span{color:#1a3a2a;}
-    .hero-sub{font-size:16px;color:#5a6a62;margin-bottom:36px;max-width:480px;margin-left:auto;margin-right:auto;line-height:1.6;}
+    .hero{background:linear-gradient(180deg,#0a0a1a 0%,#1a1040 50%,#2d1b69 100%);padding:70px 24px 60px;text-align:center;border-bottom:1px solid #3b1f8c;}
+    .hero-eyebrow{font-size:12px;font-weight:700;color:#a78bfa;letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px;}
+    .hero-title{font-size:clamp(32px,5vw,56px);font-weight:800;color:#fff;line-height:1.1;margin-bottom:12px;letter-spacing:-.5px;}
+    .hero-title span{background:linear-gradient(135deg,#a78bfa,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+    .hero-sub{font-size:16px;color:#c4b5fd;margin-bottom:40px;max-width:480px;margin-left:auto;margin-right:auto;line-height:1.6;}
 
-    /* SEARCH CARD */
-    .search-card{background:#fff;border-radius:14px;box-shadow:0 4px 32px rgba(0,0,0,.1);max-width:740px;margin:0 auto;overflow:hidden;}
-    .search-tabs{display:flex;border-bottom:1px solid #e8ede9;}
-    .search-tab{flex:1;padding:14px;text-align:center;font-size:14px;font-weight:600;cursor:pointer;color:#6b6b6b;border:none;background:transparent;border-bottom:3px solid transparent;transition:all .15s;}
-    .search-tab.active{color:#1a3a2a;border-bottom-color:#1a3a2a;background:#f9fcfa;}
+    .search-card{background:#13132a;border:1px solid #3b1f8c;border-radius:16px;max-width:760px;margin:0 auto;overflow:hidden;box-shadow:0 0 60px rgba(124,58,237,.2);}
+    .search-tabs{display:flex;border-bottom:1px solid #2d1b69;}
+    .search-tab{flex:1;padding:14px;text-align:center;font-size:14px;font-weight:600;cursor:pointer;color:#7c6aaa;border:none;background:transparent;border-bottom:3px solid transparent;transition:all .15s;font-family:inherit;}
+    .search-tab.active{color:#e0d4ff;border-bottom-color:#7c3aed;background:rgba(124,58,237,.1);}
     .search-body{padding:20px;}
-    .search-row{display:flex;gap:10px;align-items:stretch;}
-    .search-field{flex:1;display:flex;flex-direction:column;gap:4px;}
-    .search-label{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.05em;}
-    .search-input{padding:10px 14px;border:1.5px solid #dde8e2;border-radius:8px;font-size:14px;color:#1a1a1a;background:#fff;font-family:inherit;height:46px;}
-    .search-input:focus{outline:none;border-color:#1a3a2a;}
-    .search-select{padding:10px 14px;border:1.5px solid #dde8e2;border-radius:8px;font-size:14px;color:#1a1a1a;background:#fff;font-family:inherit;height:46px;}
-    .search-select:focus{outline:none;border-color:#1a3a2a;}
-    .search-btn{background:#1a3a2a;color:#fff;border:none;border-radius:8px;padding:0 24px;font-size:15px;font-weight:700;cursor:pointer;height:46px;display:flex;align-items:center;gap:8px;white-space:nowrap;}
-    .search-btn:hover{background:#0f2a1a;}
-    .search-hint{font-size:12px;color:#888;margin-top:12px;text-align:center;}
-    .search-hint a{color:#1a3a2a;font-weight:600;cursor:pointer;text-decoration:none;}
+    .search-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+    .search-field{flex:1;display:flex;flex-direction:column;gap:5px;min-width:120px;}
+    .search-label{font-size:11px;font-weight:700;color:#7c6aaa;text-transform:uppercase;letter-spacing:.06em;}
+    .search-select{padding:10px 14px;border:1.5px solid #3b1f8c;border-radius:8px;font-size:14px;color:#e0d4ff;background:#0d0d1a;font-family:inherit;height:46px;}
+    .search-select:focus{outline:none;border-color:#7c3aed;}
+    .search-btn{background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:0 28px;font-size:15px;font-weight:700;cursor:pointer;height:46px;display:flex;align-items:center;gap:8px;white-space:nowrap;font-family:inherit;}
+    .search-btn:hover{background:#6d28d9;}
+    .search-hint{font-size:12px;color:#7c6aaa;margin-top:12px;text-align:center;}
+    .search-hint a{color:#a78bfa;font-weight:600;cursor:pointer;}
 
-    /* FEATURES BAR */
-    .feat-bar{background:#fff;border-bottom:1px solid #eee;padding:32px 24px;}
-    .feat-bar-inner{max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:24px;}
+    .feat-bar{background:#0d0d1a;border-bottom:1px solid #1e1b4b;padding:36px 24px;}
+    .feat-bar-inner{max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:24px;}
     .feat-item{text-align:center;}
-    .feat-item-ico{font-size:24px;margin-bottom:8px;}
-    .feat-item-t{font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:3px;}
-    .feat-item-d{font-size:12px;color:#888;line-height:1.4;}
+    .feat-item-ico{font-size:22px;margin-bottom:8px;}
+    .feat-item-t{font-size:13px;font-weight:700;color:#e0d4ff;margin-bottom:3px;}
+    .feat-item-d{font-size:11px;color:#7c6aaa;line-height:1.4;}
 
-    /* LISTINGS PREVIEW */
-    .listings-preview{padding:40px 24px;background:#fafaf8;}
+    .listings-preview{padding:48px 24px;background:#0a0a1a;}
     .lp-inner{max-width:1100px;margin:0 auto;}
     .lp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
-    .lp-title{font-size:20px;font-weight:800;color:#1a1a1a;}
-    .lp-see-all{font-size:13px;font-weight:600;color:#1a3a2a;cursor:pointer;text-decoration:none;background:none;border:none;}
+    .lp-title{font-size:20px;font-weight:800;color:#fff;}
+    .lp-see-all{font-size:13px;font-weight:600;color:#a78bfa;cursor:pointer;background:none;border:none;font-family:inherit;}
+    .lp-see-all:hover{color:#e0d4ff;}
+
     .lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;}
-    .lcard{background:#fff;border:1px solid #e8ede9;border-radius:12px;overflow:hidden;cursor:pointer;transition:transform .12s,box-shadow .12s;}
-    .lcard:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(0,0,0,.08);}
+    .lcard{background:#13132a;border:1px solid #2d1b69;border-radius:12px;overflow:hidden;cursor:pointer;transition:transform .12s,border-color .12s,box-shadow .12s;}
+    .lcard:hover{transform:translateY(-3px);border-color:#7c3aed;box-shadow:0 8px 32px rgba(124,58,237,.2);}
     .lcard-img{width:100%;height:150px;object-fit:cover;}
     .lcard-body{padding:14px;}
-    .lcard-price{font-size:20px;font-weight:800;color:#1a1a1a;margin-bottom:3px;}
-    .lcard-addr{font-size:12px;color:#888;margin-bottom:8px;}
+    .lcard-price{font-size:20px;font-weight:800;color:#fff;margin-bottom:3px;}
+    .lcard-addr{font-size:12px;color:#7c6aaa;margin-bottom:8px;}
     .tags{display:flex;gap:5px;flex-wrap:wrap;}
-    .tag{font-size:11px;padding:3px 8px;border-radius:20px;border:1px solid #dde8e2;color:#5a6a62;background:#f0f7f2;}
-    .lcard-desc{font-size:11px;color:#888;margin-top:8px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+    .tag{font-size:11px;padding:3px 8px;border-radius:20px;border:1px solid #3b1f8c;color:#c4b5fd;background:rgba(124,58,237,.1);}
+    .lcard-desc{font-size:11px;color:#7c6aaa;margin-top:8px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 
-    /* ALL OTHER PAGES */
-    .pg{display:none;padding:24px 20px;max-width:1100px;margin:0 auto;}
+    .pg{display:none;padding:28px 24px;max-width:1100px;margin:0 auto;}
     .pg.show{display:block;}
-    .ph{margin-bottom:20px;}
-    .ph h2{font-size:22px;font-weight:800;margin-bottom:4px;}
-    .ph p{font-size:13px;color:#6b6b6b;}
-    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:20px;}
-    .stat{background:#fff;border:1px solid #e8ede9;border-radius:10px;padding:14px;text-align:center;}
-    .stat-n{font-size:28px;font-weight:800;}
-    .stat-l{font-size:11px;color:#6b6b6b;}
+    .ph{margin-bottom:24px;}
+    .ph h2{font-size:24px;font-weight:800;color:#fff;margin-bottom:4px;}
+    .ph p{font-size:13px;color:#7c6aaa;}
+    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:24px;}
+    .stat{background:#13132a;border:1px solid #2d1b69;border-radius:12px;padding:16px;text-align:center;}
+    .stat-n{font-size:30px;font-weight:800;color:#fff;}
+    .stat-l{font-size:11px;color:#7c6aaa;margin-top:2px;}
     .two{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-    @media(max-width:640px){.two{grid-template-columns:1fr;}.stats{grid-template-columns:repeat(2,1fr);}.search-row{flex-wrap:wrap;}}
-    .card{background:#fff;border:1px solid #e8ede9;border-radius:12px;padding:16px;}
-    .card-t{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px;}
-    .lrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f0f5f2;}
+    @media(max-width:640px){.two{grid-template-columns:1fr;}.stats{grid-template-columns:repeat(2,1fr);}.search-row{flex-direction:column;}}
+    .card{background:#13132a;border:1px solid #2d1b69;border-radius:12px;padding:18px;}
+    .card-t{font-size:11px;font-weight:700;color:#7c6aaa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;}
+    .lrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #1e1b4b;}
     .lrow:last-child{border-bottom:none;}
     .lthumb{width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;}
     .linfo{flex:1;min-width:0;}
-    .laddr{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .lmeta{font-size:11px;color:#6b6b6b;}
-    .badge-a{font-size:10px;padding:2px 7px;border-radius:20px;background:#e8f5e0;color:#1a3a2a;font-weight:600;}
-    .badge-r{font-size:10px;padding:2px 7px;border-radius:20px;background:#fee2e2;color:#7f1d1d;font-weight:600;}
-    .lead-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #f0f5f2;}
+    .laddr{font-size:12px;font-weight:700;color:#e0d4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .lmeta{font-size:11px;color:#7c6aaa;}
+    .badge-a{font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(124,58,237,.2);color:#c4b5fd;border:1px solid #7c3aed;font-weight:600;}
+    .badge-r{font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.3);font-weight:600;}
+    .lead-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #1e1b4b;}
     .lead-row:last-child{border-bottom:none;}
-    .lead-ico{width:30px;height:30px;border-radius:50%;background:#e8f5e0;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
-    .lead-addr{font-size:12px;font-weight:700;}
-    .lead-msg{font-size:11px;color:#6b6b6b;line-height:1.4;}
-    .lead-time{font-size:10px;color:#aaa;}
-    .empty{text-align:center;padding:24px;font-size:13px;color:#888;}
-    .aibox{background:#fff;border:1px solid #dde8e2;border-radius:12px;padding:14px 16px;margin-bottom:16px;}
-    .ailabel{font-size:11px;font-weight:700;color:#1a3a2a;margin-bottom:8px;}
+    .lead-ico{width:30px;height:30px;border-radius:50%;background:rgba(124,58,237,.2);border:1px solid #7c3aed;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+    .lead-addr{font-size:12px;font-weight:700;color:#e0d4ff;}
+    .lead-msg{font-size:11px;color:#7c6aaa;line-height:1.4;}
+    .lead-time{font-size:10px;color:#4c3a8a;}
+    .empty{text-align:center;padding:24px;font-size:13px;color:#7c6aaa;}
+
+    .aibox{background:#13132a;border:1px solid #3b1f8c;border-radius:12px;padding:14px 16px;margin-bottom:16px;}
+    .ailabel{font-size:11px;font-weight:700;color:#a78bfa;margin-bottom:8px;}
     .arow{display:flex;gap:8px;}
-    .ainp{flex:1;padding:9px 12px;border:1.5px solid #dde8e2;border-radius:8px;font-size:13px;color:#1a1a1a;background:#fff;font-family:inherit;}
-    .ainp:focus{outline:none;border-color:#1a3a2a;}
-    .filters{background:#fff;border:1px solid #dde8e2;border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;}
+    .ainp{flex:1;padding:9px 12px;border:1.5px solid #3b1f8c;border-radius:8px;font-size:13px;color:#e0d4ff;background:#0d0d1a;font-family:inherit;}
+    .ainp:focus{outline:none;border-color:#7c3aed;}
+    .ainp::placeholder{color:#4c3a8a;}
+
+    .filters{background:#13132a;border:1px solid #2d1b69;border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;}
     .fg{display:flex;flex-direction:column;gap:4px;}
-    .fl{font-size:11px;color:#888;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
-    select{padding:7px 10px;border:1.5px solid #dde8e2;border-radius:8px;font-size:13px;color:#1a1a1a;background:#fff;min-width:120px;font-family:inherit;}
-    .cnt{font-size:13px;color:#6b6b6b;margin-bottom:14px;}
+    .fl{font-size:11px;color:#7c6aaa;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+    select{padding:7px 10px;border:1.5px solid #3b1f8c;border-radius:8px;font-size:13px;color:#e0d4ff;background:#0d0d1a;min-width:120px;font-family:inherit;}
+    select:focus{outline:none;border-color:#7c3aed;}
+    .cnt{font-size:13px;color:#7c6aaa;margin-bottom:14px;}
+
     .fgroup{margin-bottom:14px;}
-    .flabel{font-size:12px;font-weight:700;color:#888;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;display:block;}
-    .finput,.fsel,.farea{width:100%;padding:10px 12px;border:1.5px solid #dde8e2;border-radius:8px;font-size:13px;color:#1a1a1a;background:#fff;font-family:inherit;}
-    .finput:focus,.fsel:focus,.farea:focus{outline:none;border-color:#1a3a2a;}
+    .flabel{font-size:12px;font-weight:700;color:#7c6aaa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;display:block;}
+    .finput,.fsel,.farea{width:100%;padding:10px 14px;border:1.5px solid #3b1f8c;border-radius:8px;font-size:13px;color:#e0d4ff;background:#0d0d1a;font-family:inherit;}
+    .finput::placeholder{color:#4c3a8a;}
+    .farea::placeholder{color:#4c3a8a;}
+    .finput:focus,.fsel:focus,.farea:focus{outline:none;border-color:#7c3aed;}
     .farea{min-height:90px;resize:vertical;}
     .two-inp{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
     .btn{padding:9px 18px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid;font-family:inherit;}
-    .btn-p{background:#1a3a2a;color:#fff;border-color:#1a3a2a;}
-    .btn-p:hover{background:#0f2a1a;}
-    .btn-s{background:#fff;color:#1a1a1a;border-color:#dde8e2;}
-    .btn-s:hover{background:#f0f7f2;}
-    .btn-ai{background:#1a3a2a;color:#c8f0d0;border-color:#1a3a2a;font-size:12px;padding:7px 14px;}
-    .btn-ai:hover{opacity:.85;}
-    .btn-ai:disabled{opacity:.5;cursor:not-allowed;}
+    .btn-p{background:#7c3aed;color:#fff;border-color:#7c3aed;}
+    .btn-p:hover{background:#6d28d9;}
+    .btn-s{background:transparent;color:#c4b5fd;border-color:#3b1f8c;}
+    .btn-s:hover{background:rgba(124,58,237,.1);}
+    .btn-ai{background:rgba(124,58,237,.15);color:#c4b5fd;border-color:#3b1f8c;font-size:12px;padding:7px 14px;}
+    .btn-ai:hover{background:rgba(124,58,237,.25);border-color:#7c3aed;}
+    .btn-ai:disabled{opacity:.4;cursor:not-allowed;}
     .btn-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
-    .price-hint{font-size:12px;color:#1a3a2a;background:#e8f5e0;padding:5px 10px;border-radius:6px;margin-top:6px;display:inline-block;border:1px solid #c8f0d0;font-weight:600;}
-    .photo-preview{width:100%;height:160px;object-fit:cover;border-radius:8px;margin-top:8px;}
-    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
-    .modal{background:#fff;border-radius:14px;padding:24px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;}
+    .price-hint{font-size:12px;color:#a78bfa;background:rgba(124,58,237,.15);padding:5px 10px;border-radius:6px;margin-top:6px;display:inline-block;border:1px solid #3b1f8c;font-weight:600;}
+    .photo-preview{width:100%;height:160px;object-fit:cover;border-radius:8px;margin-top:8px;border:1px solid #3b1f8c;}
+
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
+    .modal{background:#13132a;border:1px solid #3b1f8c;border-radius:16px;padding:24px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 0 80px rgba(124,58,237,.3);}
     .modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
-    .modal-title{font-size:20px;font-weight:800;}
-    .modal-sub{font-size:12px;color:#888;margin-top:3px;}
-    .modal-x{background:none;border:none;font-size:22px;cursor:pointer;color:#888;padding:0;line-height:1;}
-    .modal-img{width:100%;height:200px;object-fit:cover;border-radius:10px;margin-bottom:14px;}
-    .modal-price{font-size:30px;font-weight:800;margin-bottom:8px;}
-    .modal-desc{font-size:13px;color:#6b6b6b;line-height:1.7;margin-bottom:14px;}
-    .hood-bio{background:#e8f5e0;border-radius:8px;padding:12px 14px;font-size:12px;color:#1a3a2a;line-height:1.6;margin-bottom:14px;}
-    .hood-bio-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;opacity:.65;}
-    .cover-box{background:#f0faf4;border:1px solid #c8f0d0;border-radius:8px;padding:12px 14px;font-size:12px;color:#1a3a2a;line-height:1.7;margin-top:10px;}
-    .cover-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;opacity:.65;}
-    .success{background:#e8f5e0;border-radius:10px;padding:18px;text-align:center;}
-    .success strong{font-size:16px;color:#1a3a2a;}
-    .success p{font-size:13px;color:#1a3a2a;margin-top:6px;}
-    .divider{height:1px;background:#e8ede9;margin:14px 0;}
-    .spin{display:inline-block;width:13px;height:13px;border:2px solid #c8f0d0;border-top-color:#1a3a2a;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle;margin-right:5px;}
-    .big-spin{width:28px;height:28px;border:3px solid #c8f0d0;border-top-color:#1a3a2a;border-radius:50%;animation:sp .6s linear infinite;margin:0 auto;}
+    .modal-title{font-size:20px;font-weight:800;color:#fff;}
+    .modal-sub{font-size:12px;color:#7c6aaa;margin-top:3px;}
+    .modal-x{background:none;border:none;font-size:22px;cursor:pointer;color:#7c6aaa;padding:0;line-height:1;}
+    .modal-x:hover{color:#e0d4ff;}
+    .modal-img{width:100%;height:200px;object-fit:cover;border-radius:10px;margin-bottom:14px;border:1px solid #3b1f8c;}
+    .modal-price{font-size:30px;font-weight:800;color:#fff;margin-bottom:8px;}
+    .modal-desc{font-size:13px;color:#c4b5fd;line-height:1.7;margin-bottom:14px;}
+    .hood-bio{background:rgba(124,58,237,.1);border:1px solid #3b1f8c;border-radius:8px;padding:12px 14px;font-size:12px;color:#c4b5fd;line-height:1.6;margin-bottom:14px;}
+    .hood-bio-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;color:#a78bfa;}
+    .cover-box{background:rgba(124,58,237,.08);border:1px solid #3b1f8c;border-radius:8px;padding:12px 14px;font-size:12px;color:#c4b5fd;line-height:1.7;margin-top:10px;}
+    .cover-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;color:#a78bfa;}
+    .divider{height:1px;background:#1e1b4b;margin:14px 0;}
+    .success{background:rgba(124,58,237,.15);border:1px solid #3b1f8c;border-radius:10px;padding:18px;text-align:center;}
+    .success strong{font-size:16px;color:#e0d4ff;}
+    .success p{font-size:13px;color:#a78bfa;margin-top:6px;}
+
+    .spin{display:inline-block;width:13px;height:13px;border:2px solid #3b1f8c;border-top-color:#a78bfa;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle;margin-right:5px;}
+    .big-spin{width:28px;height:28px;border:3px solid #3b1f8c;border-top-color:#a78bfa;border-radius:50%;animation:sp .6s linear infinite;margin:0 auto;}
     @keyframes sp{to{transform:rotate(360deg)}}
-    .ai-overlay{position:fixed;inset:0;background:rgba(0,0,0,.48);z-index:300;display:flex;align-items:center;justify-content:center;}
-    .ai-box{background:#fff;border-radius:12px;padding:32px 44px;text-align:center;min-width:220px;}
-    .ai-box p{font-size:14px;color:#6b6b6b;margin-top:14px;}
-    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:11px 22px;border-radius:8px;font-size:13px;z-index:999;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.2);}
-    .toast.warn{background:#92400e;}
+    .ai-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;display:flex;align-items:center;justify-content:center;}
+    .ai-box{background:#13132a;border:1px solid #3b1f8c;border-radius:14px;padding:36px 48px;text-align:center;box-shadow:0 0 60px rgba(124,58,237,.3);}
+    .ai-box p{font-size:14px;color:#a78bfa;margin-top:14px;}
+
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1b4b;border:1px solid #7c3aed;color:#e0d4ff;padding:11px 22px;border-radius:8px;font-size:13px;z-index:999;white-space:nowrap;box-shadow:0 4px 24px rgba(124,58,237,.3);}
+    .toast.warn{background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5;}
+
+    input[type=range]{accent-color:#7c3aed;}
   `;
 
   return (
@@ -344,7 +375,7 @@ export default function BrokerAI() {
               <button className="modal-x" onClick={()=>{setSelected(null);setHoodBio("");setCoverLetter("");}}>✕</button>
             </div>
             <img className="modal-img" src={selected.photo} alt={selected.addr} onError={e=>e.target.src=HOOD_PHOTOS["Williamsburg"]} />
-            <div className="modal-price">${selected.rent.toLocaleString()}<span style={{fontSize:14,fontWeight:400,color:"#888"}}>/mo</span></div>
+            <div className="modal-price">${selected.rent.toLocaleString()}<span style={{fontSize:14,fontWeight:400,color:"#7c6aaa"}}>/mo</span></div>
             <div className="modal-desc">{selected.desc}</div>
             {bioLoading ? (
               <div className="hood-bio"><div className="hood-bio-lbl">✦ AI neighborhood guide</div><span className="spin"></span>Loading...</div>
@@ -356,19 +387,14 @@ export default function BrokerAI() {
               <>
                 <div className="fgroup">
                   <label className="flabel">Message to broker</label>
-                  <textarea className="farea" placeholder="Hi, I'm interested in this apartment. I'm looking to move next month..." value={contactMsg} onChange={e=>setContactMsg(e.target.value)} style={{minHeight:80}} />
+                  <textarea className="farea" placeholder="Hi, I'm interested in this apartment..." value={contactMsg} onChange={e=>setContactMsg(e.target.value)} style={{minHeight:80}} />
                 </div>
                 <div className="btn-row" style={{marginBottom:10}}>
                   <button className="btn btn-ai" onClick={genCoverLetter} disabled={coverLoading}>
                     {coverLoading ? <><span className="spin"></span>Writing...</> : "📋 AI application helper"}
                   </button>
                 </div>
-                {coverLetter && (
-                  <div className="cover-box">
-                    <div className="cover-lbl">✦ AI-written cover letter</div>
-                    {coverLetter}
-                  </div>
-                )}
+                {coverLetter && <div className="cover-box"><div className="cover-lbl">✦ AI cover letter</div>{coverLetter}</div>}
                 <button className="btn btn-p" style={{width:"100%",marginTop:12}} onClick={sendMessage}>Send message to broker</button>
               </>
             ) : (
@@ -381,9 +407,11 @@ export default function BrokerAI() {
         </div>
       )}
 
-      {/* TOP NAV */}
+      {/* NAVBAR */}
       <div className="topnav">
-        <div className="topnav-logo" onClick={()=>setView("home")}>Broker<span>AI</span></div>
+        <div style={{cursor:"pointer"}} onClick={()=>setView("home")}>
+          <SkylineLogo />
+        </div>
         <div className="topnav-links">
           <button className={`topnav-link${view==="home"?" active":""}`} onClick={()=>setView("home")}>Home</button>
           <button className={`topnav-link${view==="search"?" active":""}`} onClick={()=>setView("search")}>Search</button>
@@ -402,13 +430,13 @@ export default function BrokerAI() {
         </div>
       </div>
 
-      {/* HOME PAGE */}
+      {/* HOME */}
       {view==="home" && (
         <>
           <div className="hero">
-            <div className="hero-eyebrow">✦ AI-powered real estate</div>
-            <h1 className="hero-title">Find your home in<br/><span>New York City</span></h1>
-            <p className="hero-sub">The smarter way to rent, buy, and list — with AI built into every step.</p>
+            <div className="hero-eyebrow">✦ AI-powered NYC real estate</div>
+            <h1 className="hero-title">Your next home<br/>in <span>New York City</span></h1>
+            <p className="hero-sub">The smarter way to rent, buy, and list — with AI built into every step of the process.</p>
 
             <div className="search-card">
               <div className="search-tabs">
@@ -429,7 +457,7 @@ export default function BrokerAI() {
                   </div>
                   <div className="search-field">
                     <span className="search-label">Min Price</span>
-                    <select className="search-select" value={searchMinPrice} onChange={e=>setSearchMinPrice(e.target.value)}>
+                    <select className="search-select" value="" onChange={()=>{}}>
                       <option value="">Min</option>
                       {["1500","2000","2500","3000","3500","4000"].map(p=><option key={p} value={p}>${parseInt(p).toLocaleString()}</option>)}
                     </select>
@@ -441,12 +469,12 @@ export default function BrokerAI() {
                       {["2000","2500","3000","3500","4000","5000","6000"].map(p=><option key={p} value={p}>${parseInt(p).toLocaleString()}</option>)}
                     </select>
                   </div>
-                  <button className="search-btn" onClick={handleHomeSearch}>
+                  <button className="search-btn" onClick={()=>setView("search")}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                     Search
                   </button>
                 </div>
-                <div className="search-hint">Find the right home faster: <a onClick={()=>{setRole("renter");setView("search");}}>sign up</a> or <a onClick={()=>{setRole("renter");setView("search");}}>log in</a></div>
+                <div className="search-hint">Find your home faster: <a onClick={()=>{setRole("renter");setView("search");}}>sign up</a> or <a onClick={()=>{setRole("renter");setView("search");}}>log in</a></div>
               </div>
             </div>
           </div>
@@ -454,12 +482,12 @@ export default function BrokerAI() {
           <div className="feat-bar">
             <div className="feat-bar-inner">
               {[
-                {i:"✦",t:"AI listing writer",d:"Descriptions written in seconds"},
-                {i:"🖼",t:"AI photo finder",d:"Find photos automatically"},
-                {i:"◎",t:"Natural language search",d:"Search the way you talk"},
-                {i:"🗺",t:"Neighborhood guide",d:"AI insights for every area"},
-                {i:"📋",t:"Application helper",d:"AI cover letters for renters"},
-                {i:"⬡",t:"Smart pricing",d:"Market-based rent suggestions"},
+                {i:"✦",t:"AI listing writer",d:"Descriptions in seconds"},
+                {i:"🖼",t:"AI photo finder",d:"Auto-find apartment photos"},
+                {i:"◎",t:"Natural search",d:"Search how you talk"},
+                {i:"🗺",t:"Neighborhood guide",d:"AI insights every area"},
+                {i:"📋",t:"Application helper",d:"AI cover letters"},
+                {i:"⬡",t:"Smart pricing",d:"Market rent suggestions"},
               ].map(f=>(
                 <div className="feat-item" key={f.t}>
                   <div className="feat-item-ico">{f.i}</div>
@@ -471,7 +499,7 @@ export default function BrokerAI() {
           </div>
 
           <div className="listings-preview">
-            <div class="lp-inner">
+            <div className="lp-inner">
               <div className="lp-header">
                 <div className="lp-title">Featured listings</div>
                 <button className="lp-see-all" onClick={()=>setView("search")}>See all →</button>
@@ -497,17 +525,17 @@ export default function BrokerAI() {
         </>
       )}
 
-      {/* SEARCH PAGE */}
+      {/* SEARCH */}
       <div className={`pg${view==="search"?" show":""}`}>
         <div className="ph"><h2>Find your apartment</h2><p>Search with filters or describe what you want in plain English</p></div>
         <div className="aibox">
           <div className="ailabel">✦ AI search — describe what you want</div>
           <div className="arow">
-            <input className="ainp" placeholder='Try: "sunny 2BR in Williamsburg under $3,500 near L train no fee"' value={nlQuery} onChange={e=>{setNlQuery(e.target.value);setNlResults(null);}} onKeyDown={e=>e.key==="Enter"&&doNLSearch()} />
+            <input className="ainp" placeholder='Try: "sunny 2BR in Williamsburg under $3,500 near L train"' value={nlQuery} onChange={e=>{setNlQuery(e.target.value);setNlResults(null);}} onKeyDown={e=>e.key==="Enter"&&doNLSearch()} />
             <button className="btn btn-ai" onClick={doNLSearch}>Search</button>
           </div>
-          {nlResults && nlResults.length===0 && <p style={{fontSize:12,color:"#888",marginTop:10}}>No matches found. Try different words.</p>}
-          {nlResults && nlResults.length>0 && <p style={{fontSize:12,color:"#1a3a2a",marginTop:10}}>✦ {nlResults.length} AI match{nlResults.length!==1?"es":""} for "{nlQuery}"</p>}
+          {nlResults && nlResults.length===0 && <p style={{fontSize:12,color:"#7c6aaa",marginTop:10}}>No matches found. Try different words.</p>}
+          {nlResults && nlResults.length>0 && <p style={{fontSize:12,color:"#a78bfa",marginTop:10}}>✦ {nlResults.length} AI match{nlResults.length!==1?"es":""} for "{nlQuery}"</p>}
         </div>
         <div className="filters">
           <div className="fg">
@@ -582,7 +610,7 @@ export default function BrokerAI() {
           <div className="card">
             <div className="card-t">Renter inquiries</div>
             {myLeads.length===0
-              ? <div className="empty">No inquiries yet. They'll appear here when renters message you.</div>
+              ? <div className="empty">No inquiries yet.</div>
               : myLeads.map((ld,i)=>(
                 <div className="lead-row" key={i}>
                   <div className="lead-ico">✉</div>
