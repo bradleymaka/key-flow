@@ -341,31 +341,27 @@ export default function RealEstateAI() {
     setContactSent(true); showToast("Message sent!");
   }
 
-  // Address autocomplete using OpenStreetMap Nominatim — handles partial numbers like "128-45"
+  // Address autocomplete using NYC Planning GeoSearch API — built specifically for NYC addresses
+  // Handles Queens-style hyphenated addresses like "148-45 Jamaica Ave"
   async function searchAddress(query) {
     if(query.length < 3) { setAddrSuggestions([]); return; }
     setAddrLoading(true);
     try {
-      // Search NYC specifically for better results with partial addresses
-      const q = encodeURIComponent(query + ", New York, NY");
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=6&addressdetails=1&countrycodes=us&bounded=1&viewbox=-74.2591,40.4774,-73.7004,40.9176`);
+      const res = await fetch(`https://geosearch.planninglabs.nyc/v2/autocomplete?text=${encodeURIComponent(query)}&size=6`);
       const data = await res.json();
-      const suggestions = data
-        .filter(d=>d.address?.state==="New York")
-        .map(d=>{
-          const a = d.address;
-          const num = a.house_number||"";
-          const street = a.road||"";
-          const hood = a.suburb||a.neighbourhood||a.city_district||a.town||"";
-          const city = a.city||a.town||"New York";
-          const zip = a.postcode||"";
-          const boro = a.county||"";
-          const display = [num,street].filter(Boolean).join(" ");
-          const full = [display, hood, city, "NY", zip].filter(Boolean).join(", ");
-          return { display: full||d.display_name.split(",").slice(0,4).join(","), hood, zip, boro };
-        })
-        .filter(s=>s.display.length>3);
-      setAddrSuggestions(suggestions.slice(0,6));
+      const features = data.features||[];
+      const suggestions = features.map(f=>{
+        const p = f.properties;
+        const num = p.housenumber||"";
+        const street = p.street||"";
+        const hood = p.neighbourhood||p.localadmin||"";
+        const borough = p.borough||"";
+        const zip = p.postalcode||"";
+        const addr = [num,street].filter(Boolean).join(" ");
+        const display = [addr, hood||borough, "NY", zip].filter(Boolean).join(", ");
+        return { display, hood, zip, borough };
+      }).filter(s=>s.display.length>3);
+      setAddrSuggestions(suggestions);
     } catch { setAddrSuggestions([]); }
     setAddrLoading(false);
   }
