@@ -138,6 +138,7 @@ export default function RealEstateAI() {
 
   // Profile state
   const [editBio, setEditBio] = useState("");
+  const [editCreds, setEditCreds] = useState({ license:"", agency:"", experience:"", phone:"" });
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [historyConsent, setHistoryConsent] = useState(true);
@@ -158,6 +159,7 @@ export default function RealEstateAI() {
             setViewHistory(data.viewHistory||[]);
             setEditBio(data.bio||"");
             setHistoryConsent(data.historyConsent!==false);
+            setEditCreds({ license:data.license||"", agency:data.agency||"", experience:data.experience||"", phone:data.phone||"" });
           } else {
             const newProfile = { role:"renter", bio:"", viewHistory:[], photoURL:u.photoURL||"", displayName:u.displayName||"", historyConsent:true, createdAt:Date.now() };
             await setDoc(doc(db,"users",u.uid), newProfile);
@@ -260,8 +262,9 @@ export default function RealEstateAI() {
     if(!user) return;
     setSavingProfile(true);
     try {
-      await setDoc(doc(db,"users",user.uid),{bio:editBio,historyConsent},{merge:true});
-      setUserProfile(p=>({...p,bio:editBio,historyConsent}));
+      const data = {bio:editBio,historyConsent,...editCreds};
+      await setDoc(doc(db,"users",user.uid),data,{merge:true});
+      setUserProfile(p=>({...p,bio:editBio,historyConsent,...editCreds}));
       if(!historyConsent) setViewHistory([]);
       showToast("Profile saved!");
     } catch { showToast("Save failed","warn"); }
@@ -682,7 +685,7 @@ export default function RealEstateAI() {
             <div className="modal-head">
               <div>
                 <div className="modal-title">{selected.addr}</div>
-                <div className="modal-sub">{selected.hood} · {selected.beds==="0"?"Studio":(selected.beds||"")+" BR"}{selected.baths?" · "+selected.baths+" BA":""}{selected.floor?" · Floor "+selected.floor:""}{selected.unit?" · Apt "+selected.unit:""} · <span style={{color:"#a78bfa",cursor:"pointer"}} onClick={e=>{e.stopPropagation();setPublicBroker({name:selected.broker,id:selected.brokerId});setSelected(null);setView("broker-public");}}>by {selected.broker} →</span></div>
+                <div className="modal-sub">{selected.hood} · {selected.beds==="0"?"Studio":(selected.beds||"")+" BR"}{selected.baths?" · "+selected.baths+" BA":""}{selected.floor?" · Floor "+selected.floor:""}{selected.unit?" · Apt "+selected.unit:""} · <span style={{color:"#a78bfa",cursor:"pointer"}} onClick={async e=>{e.stopPropagation();let creds={};try{const s=await getDoc(doc(db,"users",selected.brokerId));if(s.exists())creds=s.data();}catch{}setPublicBroker({name:selected.broker,id:selected.brokerId,...creds});setSelected(null);setView("broker-public");}}>by {selected.broker} →</span></div>
               </div>
               <button className="modal-x" onClick={()=>{setSelected(null);setHoodBio("");setCoverLetter("");}}>✕</button>
             </div>
@@ -787,6 +790,35 @@ export default function RealEstateAI() {
               <textarea className="farea" placeholder="Tell people about yourself — your NYC neighborhood expertise, what you're looking for, or your experience as a broker..." value={editBio} onChange={e=>setEditBio(e.target.value)} />
             </div>
 
+            {/* Broker credentials */}
+            {userRole==="broker"&&(
+              <div style={{background:"rgba(124,58,237,.08)",border:"1px solid #3b1f8c",borderRadius:10,padding:"16px",marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#a78bfa",textTransform:"uppercase",letterSpacing:".06em",marginBottom:12}}>🏛 Professional credentials</div>
+                <div style={{fontSize:11,color:"#7c6aaa",marginBottom:14,lineHeight:1.5}}>These appear on your public profile so renters know they're dealing with a verified professional. NY State requires all real estate brokers and agents to hold a valid license.</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <div className="fgroup" style={{margin:0}}>
+                    <label className="flabel">NY License number</label>
+                    <input className="finput" placeholder="e.g. 10401234567" value={editCreds.license} onChange={e=>setEditCreds(p=>({...p,license:e.target.value}))} />
+                  </div>
+                  <div className="fgroup" style={{margin:0}}>
+                    <label className="flabel">Phone number</label>
+                    <input className="finput" placeholder="e.g. (212) 555-0100" value={editCreds.phone} onChange={e=>setEditCreds(p=>({...p,phone:e.target.value}))} />
+                  </div>
+                  <div className="fgroup" style={{margin:0}}>
+                    <label className="flabel">Agency / Brokerage name</label>
+                    <input className="finput" placeholder="e.g. Compass, Douglas Elliman..." value={editCreds.agency} onChange={e=>setEditCreds(p=>({...p,agency:e.target.value}))} />
+                  </div>
+                  <div className="fgroup" style={{margin:0}}>
+                    <label className="flabel">Years of experience</label>
+                    <select className="fsel" value={editCreds.experience} onChange={e=>setEditCreds(p=>({...p,experience:e.target.value}))}>
+                      <option value="">Select</option>
+                      <option>Less than 1 year</option><option>1–2 years</option><option>3–5 years</option><option>6–10 years</option><option>10–15 years</option><option>15–20 years</option><option>20+ years</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button className="btn btn-p" onClick={handleSaveProfile} disabled={savingProfile} style={{marginBottom:16}}>
               {savingProfile?"Saving...":"Save profile"}
             </button>
@@ -872,7 +904,26 @@ export default function RealEstateAI() {
             </div>
             <div className="broker-pub-name">{publicBroker.name}</div>
             <div className="broker-pub-role">Real Estate Broker · New York City</div>
-            <div className="broker-pub-bio">Helping clients find their perfect NYC apartment. Specializing in Brooklyn and Manhattan neighborhoods.</div>
+            {/* Verified badge */}
+            {publicBroker.license ? (
+              <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(5,150,105,.15)",border:"1px solid #059669",borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700,color:"#34d399",marginBottom:10}}>
+                ✓ Verified Agent
+              </div>
+            ) : (
+              <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(245,158,11,.1)",border:"1px solid #d97706",borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:600,color:"#fbbf24",marginBottom:10}}>
+                ⚠ Credentials not submitted
+              </div>
+            )}
+            {publicBroker.bio&&<div className="broker-pub-bio">{publicBroker.bio}</div>}
+            {/* Credentials grid */}
+            {(publicBroker.agency||publicBroker.license||publicBroker.phone||publicBroker.experience)&&(
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,maxWidth:500,margin:"0 auto 16px",textAlign:"left"}}>
+                {publicBroker.agency&&<div style={{background:"#0d0d1a",border:"1px solid #2d1b69",borderRadius:8,padding:"10px 14px"}}><div style={{fontSize:10,color:"#7c6aaa",textTransform:"uppercase",letterSpacing:".05em",marginBottom:3}}>Agency</div><div style={{fontSize:13,color:"#e0d4ff",fontWeight:600}}>{publicBroker.agency}</div></div>}
+                {publicBroker.license&&<div style={{background:"#0d0d1a",border:"1px solid #2d1b69",borderRadius:8,padding:"10px 14px"}}><div style={{fontSize:10,color:"#7c6aaa",textTransform:"uppercase",letterSpacing:".05em",marginBottom:3}}>NY License</div><div style={{fontSize:13,color:"#e0d4ff",fontWeight:600}}>{publicBroker.license}</div></div>}
+                {publicBroker.experience&&<div style={{background:"#0d0d1a",border:"1px solid #2d1b69",borderRadius:8,padding:"10px 14px"}}><div style={{fontSize:10,color:"#7c6aaa",textTransform:"uppercase",letterSpacing:".05em",marginBottom:3}}>Experience</div><div style={{fontSize:13,color:"#e0d4ff",fontWeight:600}}>{publicBroker.experience}</div></div>}
+                {publicBroker.phone&&<div style={{background:"#0d0d1a",border:"1px solid #2d1b69",borderRadius:8,padding:"10px 14px"}}><div style={{fontSize:10,color:"#7c6aaa",textTransform:"uppercase",letterSpacing:".05em",marginBottom:3}}>Phone</div><div style={{fontSize:13,color:"#e0d4ff",fontWeight:600}}>{publicBroker.phone}</div></div>}
+              </div>
+            )}
             <div className="broker-pub-stats">
               <div className="broker-pub-stat"><div className="broker-pub-stat-n">{listings.filter(l=>l.broker===publicBroker.name).length}</div><div className="broker-pub-stat-l">Total listings</div></div>
               <div className="broker-pub-stat"><div className="broker-pub-stat-n">{listings.filter(l=>l.broker===publicBroker.name&&l.status==="active").length}</div><div className="broker-pub-stat-l">Active</div></div>
@@ -980,7 +1031,7 @@ export default function RealEstateAI() {
                   <div className="tags">
                     <span className="tag">{l.beds} BR</span>
                     <span className="tag">{l.hood}</span>
-                    <span className="tag bt" onClick={e=>{e.stopPropagation();setPublicBroker({name:l.broker,id:l.brokerId});setView("broker-public");}}>by {l.broker} →</span>
+                    <span className="tag bt" onClick={async e=>{e.stopPropagation();let creds={};try{const s=await getDoc(doc(db,"users",l.brokerId));if(s.exists())creds=s.data();}catch{}setPublicBroker({name:l.broker,id:l.brokerId,...creds});setView("broker-public");}}>by {l.broker} →</span>
                   </div>
                   <div className="lcard-desc">{l.desc}</div>
                 </div>
