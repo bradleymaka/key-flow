@@ -1,17 +1,8 @@
 import { useState, useEffect } from "react";
 import { initializeApp } from "firebase/app";
-import {
-  getAuth,
-  onAuthStateChanged,
-  signInWithPopup,
-  GoogleAuthProvider,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  updateProfile
-} from "firebase/auth";
+import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 
-// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyDlXKL5Xn0TdOFtoCSrP-gnSTbbmCJ2L_M",
   authDomain: "realestateai-921a5.firebaseapp.com",
@@ -23,14 +14,15 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
 const INIT_LISTINGS = [
-  { id:1, addr:"47 Bedford Ave", hood:"Williamsburg", rent:3200, beds:2, status:"active", broker:"Marco Silva", photo:"https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600", desc:"Bright corner unit with exposed brick and skyline views. Steps from the L train and surrounded by Williamsburg's best coffee shops and galleries.", leads:[] },
-  { id:2, addr:"210 Franklin St", hood:"Greenpoint", rent:2750, beds:1, status:"active", broker:"Priya Nair", photo:"https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600", desc:"Top-floor unit in a restored warehouse building with original hardwood floors. Quiet block, great natural light.", leads:[] },
-  { id:3, addr:"88 Nostrand Ave", hood:"Crown Heights", rent:2100, beds:1, status:"active", broker:"Marco Silva", photo:"https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=600", desc:"Sunny garden-level in a limestone brownstone. Laundry in building, close to the 2/3/4/5 trains.", leads:[] },
-  { id:4, addr:"330 W 42nd St", hood:"Hell's Kitchen", rent:4100, beds:3, status:"active", broker:"Jen Torres", photo:"https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600", desc:"Luxury three-bedroom with floor-to-ceiling windows and breathtaking Midtown views. Full-time doorman building.", leads:[] },
-  { id:5, addr:"15 Myrtle Ave", hood:"Fort Greene", rent:2900, beds:2, status:"rented", broker:"Marco Silva", photo:"https://images.unsplash.com/photo-1484154218962-a197022b5858?w=600", desc:"Renovated two-bedroom with chef kitchen and private backyard.", leads:[] },
+  { id:1, addr:"47 Bedford Ave", hood:"Williamsburg", rent:3200, beds:2, status:"active", broker:"Marco Silva", brokerId:"demo1", photo:"https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600", desc:"Bright corner unit with exposed brick and skyline views. Steps from the L train.", leads:[] },
+  { id:2, addr:"210 Franklin St", hood:"Greenpoint", rent:2750, beds:1, status:"active", broker:"Priya Nair", brokerId:"demo2", photo:"https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600", desc:"Top-floor unit in a restored warehouse building. Original hardwood floors, great natural light.", leads:[] },
+  { id:3, addr:"88 Nostrand Ave", hood:"Crown Heights", rent:2100, beds:1, status:"active", broker:"Marco Silva", brokerId:"demo1", photo:"https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=600", desc:"Sunny garden-level in a limestone brownstone. Close to the 2/3/4/5 trains.", leads:[] },
+  { id:4, addr:"330 W 42nd St", hood:"Hell's Kitchen", rent:4100, beds:3, status:"active", broker:"Jen Torres", brokerId:"demo3", photo:"https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600", desc:"Luxury three-bedroom with floor-to-ceiling windows. Full-time doorman building.", leads:[] },
+  { id:5, addr:"15 Myrtle Ave", hood:"Fort Greene", rent:2900, beds:2, status:"rented", broker:"Marco Silva", brokerId:"demo1", photo:"https://images.unsplash.com/photo-1484154218962-a197022b5858?w=600", desc:"Renovated two-bedroom with chef kitchen and private backyard.", leads:[] },
 ];
 
 const HOOD_PHOTOS = {
@@ -46,8 +38,7 @@ const HOOD_PHOTOS = {
 
 async function claudeAI(prompt, max=300) {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
+    method:"POST", headers:{"Content-Type":"application/json"},
     body:JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:max, messages:[{role:"user",content:prompt}] })
   });
   const d = await r.json();
@@ -56,26 +47,15 @@ async function claudeAI(prompt, max=300) {
 
 const SkylineLogo = () => (
   <svg width="180" height="36" viewBox="0 0 260 50" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="nsky2" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#0a0a1a"/>
-        <stop offset="60%" stopColor="#1a1040"/>
-        <stop offset="100%" stopColor="#2d1b69"/>
-      </linearGradient>
-    </defs>
-    <rect width="260" height="50" fill="url(#nsky2)" rx="6"/>
+    <defs><linearGradient id="nsky4" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0a0a1a"/><stop offset="60%" stopColor="#1a1040"/><stop offset="100%" stopColor="#2d1b69"/></linearGradient></defs>
+    <rect width="260" height="50" fill="url(#nsky4)" rx="6"/>
     <rect x="0" y="38" width="260" height="12" fill="#0a0a1a"/>
     <rect x="0" y="36" width="260" height="3" fill="#7c3aed" opacity="0.5"/>
-    <rect x="8" y="22" width="8" height="28" fill="#1e1b4b"/>
-    <rect x="10" y="18" width="4" height="5" fill="#1e1b4b"/>
-    <rect x="20" y="28" width="10" height="22" fill="#1e1b4b"/>
-    <rect x="34" y="18" width="8" height="32" fill="#1e1b4b"/>
-    <rect x="36" y="14" width="4" height="6" fill="#1e1b4b"/>
-    <rect x="46" y="24" width="10" height="26" fill="#1e1b4b"/>
-    <rect x="60" y="20" width="7" height="30" fill="#1e1b4b"/>
-    <rect x="71" y="26" width="9" height="24" fill="#1e1b4b"/>
-    <rect x="84" y="16" width="7" height="34" fill="#1e1b4b"/>
-    <rect x="86" y="12" width="3" height="6" fill="#1e1b4b"/>
+    <rect x="8" y="22" width="8" height="28" fill="#1e1b4b"/><rect x="10" y="18" width="4" height="5" fill="#1e1b4b"/>
+    <rect x="20" y="28" width="10" height="22" fill="#1e1b4b"/><rect x="34" y="18" width="8" height="32" fill="#1e1b4b"/>
+    <rect x="36" y="14" width="4" height="6" fill="#1e1b4b"/><rect x="46" y="24" width="10" height="26" fill="#1e1b4b"/>
+    <rect x="60" y="20" width="7" height="30" fill="#1e1b4b"/><rect x="71" y="26" width="9" height="24" fill="#1e1b4b"/>
+    <rect x="84" y="16" width="7" height="34" fill="#1e1b4b"/><rect x="86" y="12" width="3" height="6" fill="#1e1b4b"/>
     <rect x="21" y="32" width="2" height="2" fill="#fbbf24" opacity="0.9"/>
     <rect x="35" y="22" width="2" height="2" fill="#a78bfa" opacity="0.9"/>
     <rect x="48" y="28" width="2" height="2" fill="#fbbf24" opacity="0.7"/>
@@ -86,50 +66,74 @@ const SkylineLogo = () => (
   </svg>
 );
 
+// Generate a random avatar color based on name
+function avatarColor(name) {
+  const colors = ["#7c3aed","#2563eb","#059669","#d97706","#dc2626","#7c3aed","#0891b2"];
+  let hash = 0;
+  for(let i=0;i<name.length;i++) hash = name.charCodeAt(i) + ((hash<<5)-hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
 export default function RealEstateAI() {
   const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [authMode, setAuthMode] = useState("login"); // login | signup
+  const [authMode, setAuthMode] = useState("login");
   const [authView, setAuthView] = useState(false);
-  const [userRole, setUserRole] = useState(null); // broker | renter
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [authError, setAuthError] = useState("");
-  const [authBusy, setAuthBusy] = useState(false);
+  const [userRole, setUserRole] = useState("renter");
+  const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [name, setName] = useState("");
+  const [authError, setAuthError] = useState(""); const [authBusy, setAuthBusy] = useState(false);
 
   const [listings, setListings] = useState(INIT_LISTINGS);
   const [view, setView] = useState("home");
   const [homeTab, setHomeTab] = useState("rent");
   const [selected, setSelected] = useState(null);
-  const [contactMsg, setContactMsg] = useState("");
-  const [contactSent, setContactSent] = useState(false);
-  const [coverLetter, setCoverLetter] = useState("");
-  const [coverLoading, setCoverLoading] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiTask, setAiTask] = useState("");
-  const [nlQuery, setNlQuery] = useState("");
-  const [nlResults, setNlResults] = useState(null);
-  const [fHood, setFHood] = useState("All");
-  const [fBeds, setFBeds] = useState("Any");
-  const [fRent, setFRent] = useState(5000);
+  const [contactMsg, setContactMsg] = useState(""); const [contactSent, setContactSent] = useState(false);
+  const [coverLetter, setCoverLetter] = useState(""); const [coverLoading, setCoverLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false); const [aiTask, setAiTask] = useState("");
+  const [nlQuery, setNlQuery] = useState(""); const [nlResults, setNlResults] = useState(null);
+  const [fHood, setFHood] = useState("All"); const [fBeds, setFBeds] = useState("Any"); const [fRent, setFRent] = useState(5000);
   const [newL, setNewL] = useState({ addr:"", hood:"Williamsburg", beds:"", rent:"", desc:"", photo:"" });
   const [priceHint, setPriceHint] = useState("");
   const [toast, setToast] = useState(null);
-  const [hoodBio, setHoodBio] = useState("");
-  const [bioLoading, setBioLoading] = useState(false);
+  const [hoodBio, setHoodBio] = useState(""); const [bioLoading, setBioLoading] = useState(false);
+  const [viewHistory, setViewHistory] = useState([]);
+  const [publicBroker, setPublicBroker] = useState(null);
+
+  // Profile editing
+  const [editBio, setEditBio] = useState("");
+  const [editPhotoUrl, setEditPhotoUrl] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const showToast = (msg, type="ok") => { setToast({msg,type}); setTimeout(()=>setToast(null),3500); };
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
+      if(u) {
+        try {
+          const snap = await getDoc(doc(db, "users", u.uid));
+          if(snap.exists()) {
+            const data = snap.data();
+            setUserProfile(data);
+            setUserRole(data.role||"renter");
+            setViewHistory(data.viewHistory||[]);
+            setEditBio(data.bio||"");
+            setEditPhotoUrl(data.photoURL||u.photoURL||"");
+          } else {
+            const newProfile = { role:"renter", bio:"", viewHistory:[], displayName:u.displayName||"", photoURL:u.photoURL||"", createdAt:Date.now() };
+            await setDoc(doc(db,"users",u.uid), newProfile);
+            setUserProfile(newProfile);
+            setEditPhotoUrl(u.photoURL||"");
+          }
+        } catch(e) { console.log("Firestore error:", e); }
+      } else { setUserProfile(null); setViewHistory([]); }
       setAuthLoading(false);
     });
     return unsub;
   }, []);
 
-  const showToast = (msg, type="ok") => { setToast({msg,type}); setTimeout(()=>setToast(null),3500); };
-
-  const myListings = listings.filter(l=>l.broker===(user?.displayName||"Marco Silva"));
+  const myListings = listings.filter(l=>l.brokerId===user?.uid||l.broker===(user?.displayName||""));
   const myLeads = myListings.flatMap(l=>(l.leads||[]).map(ld=>({...ld,listing:l})));
   const filtered = listings.filter(l=>{
     if(l.status!=="active") return false;
@@ -139,12 +143,17 @@ export default function RealEstateAI() {
     return true;
   });
 
-  // Auth functions
   async function handleGoogleLogin(role) {
     setAuthBusy(true); setAuthError("");
     try {
-      await signInWithPopup(auth, googleProvider);
-      setUserRole(role||"renter");
+      const cred = await signInWithPopup(auth, googleProvider);
+      const u = cred.user;
+      const snap = await getDoc(doc(db,"users",u.uid));
+      if(!snap.exists()) {
+        await setDoc(doc(db,"users",u.uid), { role:role||"renter", bio:"", viewHistory:[], displayName:u.displayName||"", photoURL:u.photoURL||"", createdAt:Date.now() });
+      }
+      const data = snap.exists() ? snap.data() : { role:role||"renter" };
+      setUserRole(data.role||role||"renter");
       setAuthView(false);
       setView(role==="broker"?"broker":"search");
       showToast("Welcome! Signed in with Google.");
@@ -158,6 +167,7 @@ export default function RealEstateAI() {
       if(authMode==="signup") {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         if(name) await updateProfile(cred.user, { displayName: name });
+        await setDoc(doc(db,"users",cred.user.uid), { role:userRole||"renter", bio:"", viewHistory:[], displayName:name||"", photoURL:"", createdAt:Date.now() });
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -165,10 +175,10 @@ export default function RealEstateAI() {
       setView(userRole==="broker"?"broker":"search");
       showToast(authMode==="signup"?"Account created! Welcome.":"Welcome back!");
     } catch(e) {
-      const msg = e.code==="auth/email-already-in-use"?"Email already in use — try logging in."
-        : e.code==="auth/wrong-password"?"Wrong password. Try again."
-        : e.code==="auth/user-not-found"?"No account found. Sign up first."
-        : e.code==="auth/weak-password"?"Password must be at least 6 characters."
+      const msg = e.code==="auth/email-already-in-use"?"Email already in use."
+        : e.code==="auth/wrong-password"?"Wrong password."
+        : e.code==="auth/user-not-found"?"No account found — sign up first."
+        : e.code==="auth/weak-password"?"Password needs 6+ characters."
         : e.message;
       setAuthError(msg);
     }
@@ -176,44 +186,68 @@ export default function RealEstateAI() {
   }
 
   async function handleSignOut() {
-    await signOut(auth);
-    setUserRole(null);
-    setView("home");
-    showToast("Signed out.");
+    await signOut(auth); setUserRole("renter"); setView("home"); showToast("Signed out.");
   }
 
   function openAuth(mode, role) {
-    setAuthMode(mode||"login");
-    setUserRole(role||"renter");
-    setAuthError(""); setEmail(""); setPassword(""); setName("");
-    setAuthView(true);
+    setAuthMode(mode||"login"); setUserRole(role||"renter");
+    setAuthError(""); setEmail(""); setPassword(""); setName(""); setAuthView(true);
   }
 
-  // AI functions
-  async function genDesc() {
-    if(!newL.addr||!newL.beds||!newL.rent){ showToast("Fill address, beds, and rent first","warn"); return; }
-    setAiLoading(true); setAiTask("Writing your listing description...");
+  async function handleSaveProfile() {
+    if(!user) return;
+    setSavingProfile(true);
     try {
-      const res = await claudeAI(`Write a compelling NYC apartment listing description under 80 words for: ${newL.beds}BR in ${newL.hood}, $${newL.rent}/mo at ${newL.addr}. Be specific and appealing. No opener like "Welcome to".`);
-      setNewL(p=>({...p,desc:res}));
-      showToast("AI description written!");
+      await setDoc(doc(db,"users",user.uid), { bio:editBio, photoURL:editPhotoUrl }, {merge:true});
+      if(editPhotoUrl) await updateProfile(user, { photoURL: editPhotoUrl });
+      setUserProfile(p=>({...p, bio:editBio, photoURL:editPhotoUrl}));
+      showToast("Profile saved!");
+    } catch { showToast("Save failed — check Firebase rules","warn"); }
+    setSavingProfile(false);
+  }
+
+  async function trackView(listing) {
+    if(!user) return;
+    const alreadySeen = viewHistory.find(v=>v.id===listing.id);
+    if(alreadySeen) return;
+    const entry = { id:listing.id, addr:listing.addr, hood:listing.hood, rent:listing.rent, photo:listing.photo, viewedAt:Date.now() };
+    const newHistory = [entry, ...viewHistory].slice(0,20);
+    setViewHistory(newHistory);
+    try { await updateDoc(doc(db,"users",user.uid), { viewHistory: arrayUnion(entry) }); } catch {}
+  }
+
+  async function openListing(l) {
+    setSelected(l); setContactSent(false); setContactMsg(""); setHoodBio(""); setCoverLetter("");
+    trackView(l);
+    setBioLoading(true);
+    try {
+      const bio = await claudeAI(`Write 2 sentences about ${l.hood}, NYC. Cover subway access, vibe, who would love living here.`, 130);
+      setHoodBio(bio);
+    } catch {}
+    setBioLoading(false);
+  }
+
+  async function genDesc() {
+    if(!newL.addr||!newL.beds||!newL.rent){ showToast("Fill address, beds, rent first","warn"); return; }
+    setAiLoading(true); setAiTask("Writing listing description...");
+    try {
+      const res = await claudeAI(`Write a compelling NYC apartment listing description under 80 words for: ${newL.beds}BR in ${newL.hood}, $${newL.rent}/mo at ${newL.addr}. Be specific. No "Welcome to" opener.`);
+      setNewL(p=>({...p,desc:res})); showToast("AI description written!");
     } catch { showToast("API error","warn"); }
     setAiLoading(false); setAiTask("");
   }
 
   async function findPhotos() {
     setAiLoading(true); setAiTask("Finding photos...");
-    const photo = HOOD_PHOTOS[newL.hood]||HOOD_PHOTOS["Williamsburg"];
-    setNewL(p=>({...p,photo}));
-    showToast("Photos found!");
-    setAiLoading(false); setAiTask("");
+    setNewL(p=>({...p,photo:HOOD_PHOTOS[newL.hood]||HOOD_PHOTOS["Williamsburg"]}));
+    showToast("Photos found!"); setAiLoading(false); setAiTask("");
   }
 
   async function suggestPrice() {
-    if(!newL.beds||!newL.hood){ showToast("Pick neighborhood and bedrooms first","warn"); return; }
-    setAiLoading(true); setAiTask("Checking NYC market prices...");
+    if(!newL.beds||!newL.hood){ showToast("Pick neighborhood and beds first","warn"); return; }
+    setAiLoading(true); setAiTask("Checking NYC prices...");
     try {
-      const res = await claudeAI(`Typical monthly rent for a ${newL.beds}BR in ${newL.hood}, NYC in 2025? Return ONLY a range like "$2,800–$3,400".`, 25);
+      const res = await claudeAI(`Typical rent for ${newL.beds}BR in ${newL.hood}, NYC 2025? Return ONLY a range like "$2,800–$3,400".`, 25);
       setPriceHint(res);
     } catch { showToast("API error","warn"); }
     setAiLoading(false); setAiTask("");
@@ -221,10 +255,10 @@ export default function RealEstateAI() {
 
   async function doNLSearch() {
     if(!nlQuery.trim()) return;
-    setAiLoading(true); setAiTask("Finding your best matches...");
+    setAiLoading(true); setAiTask("Finding matches...");
     try {
       const summary = listings.filter(l=>l.status==="active").map(l=>`ID:${l.id}|${l.addr},${l.hood}|${l.beds}BR|$${l.rent}/mo`).join("\n");
-      const res = await claudeAI(`Renter query: "${nlQuery}"\nListings:\n${summary}\nReturn ONLY a JSON array like [2,1]. Max 3. Return [] if no match.`, 50);
+      const res = await claudeAI(`Renter query: "${nlQuery}"\nListings:\n${summary}\nReturn ONLY JSON array like [2,1]. Max 3. [] if no match.`, 50);
       const match = res.match(/\[[\d,\s]*\]/);
       if(match) setNlResults(JSON.parse(match[0]).map(id=>listings.find(l=>l.id===id)).filter(Boolean));
       else setNlResults([]);
@@ -232,21 +266,11 @@ export default function RealEstateAI() {
     setAiLoading(false); setAiTask("");
   }
 
-  async function openListing(l) {
-    setSelected(l); setContactSent(false); setContactMsg(""); setHoodBio(""); setCoverLetter("");
-    setBioLoading(true);
-    try {
-      const bio = await claudeAI(`Write 2 sentences about ${l.hood}, NYC. Cover subway access, vibe, and who would love it. Be specific.`, 130);
-      setHoodBio(bio);
-    } catch {}
-    setBioLoading(false);
-  }
-
   async function genCoverLetter() {
     if(!contactMsg.trim()){ showToast("Write your message first","warn"); return; }
     setCoverLoading(true);
     try {
-      const res = await claudeAI(`Write a short professional cover letter (under 80 words) for a renter applying for: ${selected.addr}, ${selected.hood}, ${selected.beds}BR, $${selected.rent}/mo. Renter note: "${contactMsg}". Warm, honest, persuasive.`, 150);
+      const res = await claudeAI(`Short professional cover letter under 80 words for renter applying for: ${selected.addr}, ${selected.hood}, ${selected.beds}BR, $${selected.rent}/mo. Note: "${contactMsg}". Warm and persuasive.`, 150);
       setCoverLetter(res);
     } catch { showToast("API error","warn"); }
     setCoverLoading(false);
@@ -256,19 +280,26 @@ export default function RealEstateAI() {
     if(!contactMsg.trim()){ showToast("Type a message first","warn"); return; }
     const lead = { id:Date.now(), message:contactMsg, renter:user?.displayName||user?.email||"Renter", time:new Date().toLocaleTimeString() };
     setListings(prev=>prev.map(l=>l.id===selected.id?{...l,leads:[...(l.leads||[]),lead]}:l));
-    setContactSent(true);
-    showToast("Message sent!");
+    setContactSent(true); showToast("Message sent!");
   }
 
   function publishListing() {
     if(!newL.addr||!newL.beds||!newL.rent||!newL.desc){ showToast("Fill all fields first","warn"); return; }
-    const l = { id:Date.now(), ...newL, rent:parseInt(newL.rent), beds:parseInt(newL.beds), status:"active", broker:user?.displayName||user?.email||"Broker", photo:newL.photo||HOOD_PHOTOS[newL.hood], leads:[] };
+    const l = { id:Date.now(), ...newL, rent:parseInt(newL.rent), beds:parseInt(newL.beds), status:"active", broker:user?.displayName||user?.email||"Broker", brokerId:user?.uid||"", photo:newL.photo||HOOD_PHOTOS[newL.hood], leads:[] };
     setListings(prev=>[l,...prev]);
     setNewL({addr:"",hood:"Williamsburg",beds:"",rent:"",desc:"",photo:""});
-    setPriceHint("");
-    setView("broker");
-    showToast("Listing published!");
+    setPriceHint(""); setView("broker"); showToast("Listing published!");
   }
+
+  const displayName = user?.displayName||user?.email?.split("@")[0]||"User";
+  const photoURL = userProfile?.photoURL||user?.photoURL||"";
+  const color = avatarColor(displayName);
+
+  const Avatar = ({size=28, name=displayName, url=photoURL, style={}}) => (
+    <div style={{width:size,height:size,borderRadius:"50%",background:url?"transparent":color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.4,fontWeight:700,color:"white",overflow:"hidden",flexShrink:0,...style}}>
+      {url ? <img src={url} alt={name} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"} /> : name?.[0]?.toUpperCase()||"U"}
+    </div>
+  );
 
   const css = `
     *{box-sizing:border-box;margin:0;padding:0;}
@@ -278,8 +309,8 @@ export default function RealEstateAI() {
     .topnav-link{font-size:13px;font-weight:500;color:rgba(200,180,255,.7);padding:8px 14px;border-radius:6px;cursor:pointer;border:none;background:transparent;font-family:inherit;}
     .topnav-link:hover,.topnav-link.active{background:rgba(124,58,237,.2);color:#e0d4ff;}
     .topnav-actions{display:flex;gap:8px;align-items:center;}
-    .user-chip{display:flex;align-items:center;gap:8px;background:rgba(124,58,237,.15);border:1px solid #3b1f8c;border-radius:20px;padding:5px 12px;}
-    .user-avatar{width:24px;height:24px;border-radius:50%;background:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;flex-shrink:0;}
+    .user-chip{display:flex;align-items:center;gap:8px;background:rgba(124,58,237,.15);border:1px solid #3b1f8c;border-radius:20px;padding:4px 12px 4px 4px;cursor:pointer;}
+    .user-chip:hover{border-color:#7c3aed;}
     .user-name{font-size:12px;color:#c4b5fd;font-weight:500;}
     .tnbtn{font-size:13px;font-weight:600;padding:7px 16px;border-radius:6px;cursor:pointer;font-family:inherit;}
     .tnbtn.ghost{background:transparent;color:#c4b5fd;border:1.5px solid rgba(196,181,253,.3);}
@@ -288,7 +319,6 @@ export default function RealEstateAI() {
     .tnbtn.solid:hover{background:#6d28d9;}
     .tnbtn.sm{font-size:12px;padding:5px 12px;}
 
-    /* AUTH MODAL */
     .auth-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;}
     .auth-modal{background:#13132a;border:1px solid #3b1f8c;border-radius:18px;padding:32px;max-width:420px;width:100%;box-shadow:0 0 80px rgba(124,58,237,.3);}
     .auth-logo{text-align:center;margin-bottom:20px;}
@@ -301,10 +331,10 @@ export default function RealEstateAI() {
     .auth-role-ico{font-size:20px;margin-bottom:4px;}
     .auth-role-t{font-size:11px;font-weight:700;color:#e0d4ff;}
     .auth-role-d{font-size:10px;color:#7c6aaa;margin-top:2px;}
-    .google-btn{width:100%;padding:12px;border-radius:10px;border:1.5px solid #3b1f8c;background:#0d0d1a;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;font-family:inherit;color:#e0d4ff;margin-bottom:16px;transition:border-color .15s;}
+    .google-btn{width:100%;padding:12px;border-radius:10px;border:1.5px solid #3b1f8c;background:#0d0d1a;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;font-family:inherit;color:#e0d4ff;margin-bottom:16px;}
     .google-btn:hover{border-color:#7c3aed;}
-    .divider{display:flex;align-items:center;gap:10px;margin:0 0 16px;font-size:12px;color:#4c3a8a;}
-    .divider::before,.divider::after{content:"";flex:1;height:1px;background:#2d1b69;}
+    .divider-auth{display:flex;align-items:center;gap:10px;margin:0 0 16px;font-size:12px;color:#4c3a8a;}
+    .divider-auth::before,.divider-auth::after{content:"";flex:1;height:1px;background:#2d1b69;}
     .auth-input{width:100%;padding:10px 14px;border:1.5px solid #3b1f8c;border-radius:8px;font-size:13px;color:#e0d4ff;background:#0d0d1a;font-family:inherit;margin-bottom:10px;}
     .auth-input::placeholder{color:#4c3a8a;}
     .auth-input:focus{outline:none;border-color:#7c3aed;}
@@ -315,6 +345,38 @@ export default function RealEstateAI() {
     .auth-switch a{color:#a78bfa;cursor:pointer;font-weight:600;}
     .auth-error{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:8px 12px;font-size:12px;color:#fca5a5;margin-bottom:10px;text-align:center;}
     .auth-close{float:right;background:none;border:none;color:#7c6aaa;font-size:20px;cursor:pointer;line-height:1;margin-top:-8px;}
+
+    .profile-page{max-width:680px;margin:0 auto;padding:32px 24px;}
+    .profile-card{background:#13132a;border:1px solid #2d1b69;border-radius:16px;padding:28px;margin-bottom:20px;}
+    .profile-top{display:flex;align-items:flex-start;gap:20px;margin-bottom:20px;}
+    .profile-info{flex:1;}
+    .profile-name{font-size:22px;font-weight:800;color:#fff;margin-bottom:4px;}
+    .profile-role{font-size:12px;color:#a78bfa;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+    .profile-email{font-size:13px;color:#7c6aaa;}
+    .profile-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px;}
+    .profile-stat{background:#0d0d1a;border:1px solid #2d1b69;border-radius:10px;padding:14px;text-align:center;}
+    .profile-stat-n{font-size:24px;font-weight:800;color:#fff;}
+    .profile-stat-l{font-size:11px;color:#7c6aaa;margin-top:2px;}
+    .section-card{background:#13132a;border:1px solid #2d1b69;border-radius:16px;padding:20px;margin-bottom:16px;}
+    .section-title{font-size:13px;font-weight:700;color:#7c6aaa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;}
+    .history-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #1e1b4b;cursor:pointer;}
+    .history-row:last-child{border-bottom:none;}
+    .history-row:hover{opacity:.8;}
+    .history-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;}
+    .history-info{flex:1;}
+    .history-addr{font-size:13px;font-weight:600;color:#e0d4ff;}
+    .history-meta{font-size:11px;color:#7c6aaa;}
+    .history-time{font-size:10px;color:#4c3a8a;white-space:nowrap;}
+
+    .broker-pub{max-width:700px;margin:0 auto;padding:32px 24px;}
+    .broker-pub-header{background:#13132a;border:1px solid #2d1b69;border-radius:16px;padding:28px;margin-bottom:20px;text-align:center;}
+    .broker-pub-name{font-size:22px;font-weight:800;color:#fff;margin:12px 0 4px;}
+    .broker-pub-role{font-size:12px;color:#a78bfa;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;}
+    .broker-pub-bio{font-size:13px;color:#c4b5fd;line-height:1.6;max-width:480px;margin:0 auto 16px;}
+    .broker-pub-stats{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;}
+    .broker-pub-stat{background:#0d0d1a;border:1px solid #2d1b69;border-radius:10px;padding:12px 20px;text-align:center;}
+    .broker-pub-stat-n{font-size:20px;font-weight:800;color:#fff;}
+    .broker-pub-stat-l{font-size:11px;color:#7c6aaa;}
 
     .hero{background:linear-gradient(180deg,#0a0a1a 0%,#1a1040 50%,#2d1b69 100%);padding:70px 24px 60px;text-align:center;border-bottom:1px solid #3b1f8c;}
     .hero-eyebrow{font-size:12px;font-weight:700;color:#a78bfa;letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px;}
@@ -355,6 +417,8 @@ export default function RealEstateAI() {
     .lcard-addr{font-size:12px;color:#7c6aaa;margin-bottom:8px;}
     .tags{display:flex;gap:5px;flex-wrap:wrap;}
     .tag{font-size:11px;padding:3px 8px;border-radius:20px;border:1px solid #3b1f8c;color:#c4b5fd;background:rgba(124,58,237,.1);}
+    .tag.broker-tag{cursor:pointer;color:#a78bfa;}
+    .tag.broker-tag:hover{border-color:#7c3aed;background:rgba(124,58,237,.2);}
     .lcard-desc{font-size:11px;color:#7c6aaa;margin-top:8px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
     .pg{display:none;padding:28px 24px;max-width:1100px;margin:0 auto;}
     .pg.show{display:block;}
@@ -434,7 +498,7 @@ export default function RealEstateAI() {
     .big-spin{width:28px;height:28px;border:3px solid #3b1f8c;border-top-color:#a78bfa;border-radius:50%;animation:sp .6s linear infinite;margin:0 auto;}
     @keyframes sp{to{transform:rotate(360deg)}}
     .ai-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;display:flex;align-items:center;justify-content:center;}
-    .ai-box{background:#13132a;border:1px solid #3b1f8c;border-radius:14px;padding:36px 48px;text-align:center;box-shadow:0 0 60px rgba(124,58,237,.3);}
+    .ai-box{background:#13132a;border:1px solid #3b1f8c;border-radius:14px;padding:36px 48px;text-align:center;}
     .ai-box p{font-size:14px;color:#a78bfa;margin-top:14px;}
     .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1b4b;border:1px solid #7c3aed;color:#e0d4ff;padding:11px 22px;border-radius:8px;font-size:13px;z-index:999;white-space:nowrap;}
     .toast.warn{background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5;}
@@ -445,10 +509,7 @@ export default function RealEstateAI() {
     <>
       <style>{css}</style>
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0a0a1a"}}>
-        <div style={{textAlign:"center"}}>
-          <div className="big-spin" style={{margin:"0 auto 16px"}}></div>
-          <p style={{color:"#7c6aaa",fontSize:14}}>Loading...</p>
-        </div>
+        <div style={{textAlign:"center"}}><div className="big-spin" style={{margin:"0 auto 16px"}}></div><p style={{color:"#7c6aaa",fontSize:14}}>Loading...</p></div>
       </div>
     </>
   );
@@ -456,17 +517,8 @@ export default function RealEstateAI() {
   return (
     <>
       <style>{css}</style>
-
       {toast && <div className={`toast${toast.type==="warn"?" warn":""}`}>{toast.msg}</div>}
-
-      {aiLoading && (
-        <div className="ai-overlay">
-          <div className="ai-box">
-            <div className="big-spin"></div>
-            <p>{aiTask}</p>
-          </div>
-        </div>
-      )}
+      {aiLoading && <div className="ai-overlay"><div className="ai-box"><div className="big-spin"></div><p>{aiTask}</p></div></div>}
 
       {/* AUTH MODAL */}
       {authView && (
@@ -475,8 +527,7 @@ export default function RealEstateAI() {
             <button className="auth-close" onClick={()=>setAuthView(false)}>✕</button>
             <div className="auth-logo"><SkylineLogo /></div>
             <div className="auth-title">{authMode==="signup"?"Create your account":"Welcome back"}</div>
-            <div className="auth-sub">{authMode==="signup"?"Join thousands of NYC renters and brokers":"Sign in to continue"}</div>
-
+            <div className="auth-sub">{authMode==="signup"?"Join NYC's smartest real estate platform":"Sign in to continue"}</div>
             <div className="auth-role-row">
               {[{r:"renter",i:"🔍",t:"Renter",d:"Find a place"},{r:"broker",i:"🏢",t:"Broker",d:"List property"},{r:"buyer",i:"🏠",t:"Buyer",d:"Buy a home"}].map(({r,i,t,d})=>(
                 <div key={r} className={`auth-role${userRole===r?" sel":""}`} onClick={()=>setUserRole(r)}>
@@ -486,30 +537,20 @@ export default function RealEstateAI() {
                 </div>
               ))}
             </div>
-
             <button className="google-btn" onClick={()=>handleGoogleLogin(userRole)} disabled={authBusy}>
-              <svg width="18" height="18" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
+              <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
               {authBusy?"Signing in...":"Continue with Google"}
             </button>
-
-            <div className="divider">or use email</div>
-
+            <div className="divider-auth">or use email</div>
             {authError && <div className="auth-error">{authError}</div>}
-
             {authMode==="signup" && <input className="auth-input" placeholder="Full name" value={name} onChange={e=>setName(e.target.value)} />}
             <input className="auth-input" type="email" placeholder="Email address" value={email} onChange={e=>setEmail(e.target.value)} />
             <input className="auth-input" type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleEmailAuth()} />
             <button className="auth-submit" onClick={handleEmailAuth} disabled={authBusy||!email||!password}>
               {authBusy?"Please wait...":(authMode==="signup"?"Create account":"Sign in")}
             </button>
-
             <div className="auth-switch">
-              {authMode==="login" ? <>Don't have an account? <a onClick={()=>{setAuthMode("signup");setAuthError("");}}>Sign up</a></> : <>Already have an account? <a onClick={()=>{setAuthMode("login");setAuthError("");}}>Log in</a></>}
+              {authMode==="login"?<>No account? <a onClick={()=>{setAuthMode("signup");setAuthError("");}}>Sign up</a></>:<>Have an account? <a onClick={()=>{setAuthMode("login");setAuthError("");}}>Log in</a></>}
             </div>
           </div>
         </div>
@@ -520,35 +561,33 @@ export default function RealEstateAI() {
         <div className="modal-overlay" onClick={()=>{setSelected(null);setHoodBio("");setCoverLetter("");}}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
             <div className="modal-head">
-              <div><div className="modal-title">{selected.addr}</div><div className="modal-sub">{selected.hood} · {selected.beds} BR · by {selected.broker}</div></div>
+              <div>
+                <div className="modal-title">{selected.addr}</div>
+                <div className="modal-sub">{selected.hood} · {selected.beds} BR · <span style={{color:"#a78bfa",cursor:"pointer"}} onClick={e=>{e.stopPropagation();setPublicBroker({name:selected.broker,id:selected.brokerId});setSelected(null);setView("broker-public");}}>by {selected.broker}</span></div>
+              </div>
               <button className="modal-x" onClick={()=>{setSelected(null);setHoodBio("");setCoverLetter("");}}>✕</button>
             </div>
             <img className="modal-img" src={selected.photo} alt={selected.addr} onError={e=>e.target.src=HOOD_PHOTOS["Williamsburg"]} />
             <div className="modal-price">${selected.rent.toLocaleString()}<span style={{fontSize:14,fontWeight:400,color:"#7c6aaa"}}>/mo</span></div>
             <div className="modal-desc">{selected.desc}</div>
-            {bioLoading ? <div className="hood-bio"><div className="hood-bio-lbl">✦ AI neighborhood guide</div><span className="spin"></span>Loading...</div>
-              : hoodBio ? <div className="hood-bio"><div className="hood-bio-lbl">✦ AI neighborhood guide — {selected.hood}</div>{hoodBio}</div> : null}
+            {bioLoading?<div className="hood-bio"><div className="hood-bio-lbl">✦ AI neighborhood guide</div><span className="spin"></span>Loading...</div>
+              :hoodBio?<div className="hood-bio"><div className="hood-bio-lbl">✦ AI neighborhood guide — {selected.hood}</div>{hoodBio}</div>:null}
             <div className="divider-line"></div>
-            {!user ? (
+            {!user?(
               <div style={{textAlign:"center",padding:"12px 0"}}>
                 <p style={{fontSize:13,color:"#7c6aaa",marginBottom:12}}>Sign in to message this broker</p>
-                <button className="btn btn-p" onClick={()=>openAuth("login","renter")}>Sign in to contact broker</button>
+                <button className="btn btn-p" onClick={()=>{setSelected(null);openAuth("login","renter");}}>Sign in to contact broker</button>
               </div>
-            ) : !contactSent ? (
+            ):!contactSent?(
               <>
-                <div className="fgroup">
-                  <label className="flabel">Message to broker</label>
-                  <textarea className="farea" placeholder="Hi, I'm interested in this apartment..." value={contactMsg} onChange={e=>setContactMsg(e.target.value)} style={{minHeight:80}} />
-                </div>
+                <div className="fgroup"><label className="flabel">Message to broker</label><textarea className="farea" placeholder="Hi, I'm interested in this apartment..." value={contactMsg} onChange={e=>setContactMsg(e.target.value)} style={{minHeight:80}} /></div>
                 <div className="btn-row" style={{marginBottom:10}}>
-                  <button className="btn btn-ai" onClick={genCoverLetter} disabled={coverLoading}>
-                    {coverLoading?<><span className="spin"></span>Writing...</>:"📋 AI application helper"}
-                  </button>
+                  <button className="btn btn-ai" onClick={genCoverLetter} disabled={coverLoading}>{coverLoading?<><span className="spin"></span>Writing...</>:"📋 AI application helper"}</button>
                 </div>
-                {coverLetter && <div className="cover-box"><div className="cover-lbl">✦ AI cover letter</div>{coverLetter}</div>}
+                {coverLetter&&<div className="cover-box"><div className="cover-lbl">✦ AI cover letter</div>{coverLetter}</div>}
                 <button className="btn btn-p" style={{width:"100%",marginTop:12}} onClick={sendMessage}>Send message to broker</button>
               </>
-            ) : (
+            ):(
               <div className="success"><strong>Message sent!</strong><p>The broker will get back to you soon.</p></div>
             )}
           </div>
@@ -561,19 +600,19 @@ export default function RealEstateAI() {
         <div className="topnav-links">
           <button className={`topnav-link${view==="home"?" active":""}`} onClick={()=>setView("home")}>Home</button>
           <button className={`topnav-link${view==="search"?" active":""}`} onClick={()=>setView("search")}>Search</button>
-          {user && userRole==="broker" && <button className={`topnav-link${view==="broker"?" active":""}`} onClick={()=>setView("broker")}>Dashboard</button>}
+          {user&&userRole==="broker"&&<button className={`topnav-link${view==="broker"?" active":""}`} onClick={()=>setView("broker")}>Dashboard</button>}
         </div>
         <div className="topnav-actions">
-          {user ? (
+          {user?(
             <>
-              <div className="user-chip">
-                <div className="user-avatar">{(user.displayName||user.email||"U")[0].toUpperCase()}</div>
-                <span className="user-name">{user.displayName||user.email?.split("@")[0]}</span>
+              <div className="user-chip" onClick={()=>{setEditBio(userProfile?.bio||"");setEditPhotoUrl(userProfile?.photoURL||user?.photoURL||"");setView("profile");}}>
+                <Avatar size={28} />
+                <span className="user-name">{displayName}</span>
               </div>
-              {userRole==="broker" && <button className="tnbtn solid sm" onClick={()=>setView("new-listing")}>+ List</button>}
+              {userRole==="broker"&&<button className="tnbtn solid sm" onClick={()=>setView("new-listing")}>+ List</button>}
               <button className="tnbtn ghost sm" onClick={handleSignOut}>Sign out</button>
             </>
-          ) : (
+          ):(
             <>
               <button className="tnbtn ghost" onClick={()=>openAuth("login","renter")}>Log in</button>
               <button className="tnbtn solid" onClick={()=>openAuth("signup","broker")}>List your property</button>
@@ -582,36 +621,127 @@ export default function RealEstateAI() {
         </div>
       </div>
 
+      {/* PROFILE PAGE */}
+      {view==="profile"&&user&&(
+        <div className="profile-page">
+          <div className="profile-card">
+            <div className="profile-top">
+              <Avatar size={72} style={{border:"3px solid #3b1f8c"}} />
+              <div className="profile-info">
+                <div className="profile-name">{displayName}</div>
+                <div className="profile-role">{userRole}</div>
+                <div className="profile-email">{user.email}</div>
+              </div>
+            </div>
+
+            <div className="fgroup">
+              <label className="flabel">Profile photo URL</label>
+              <input className="finput" placeholder="Paste a photo URL e.g. https://..." value={editPhotoUrl} onChange={e=>setEditPhotoUrl(e.target.value)} />
+              {editPhotoUrl&&<img src={editPhotoUrl} alt="preview" style={{width:60,height:60,borderRadius:"50%",objectFit:"cover",marginTop:8,border:"2px solid #3b1f8c"}} onError={e=>e.target.style.display="none"} />}
+            </div>
+
+            <div className="fgroup">
+              <label className="flabel">Bio</label>
+              <textarea className="farea" placeholder="Tell people about yourself..." value={editBio} onChange={e=>setEditBio(e.target.value)} />
+            </div>
+
+            <button className="btn btn-p" onClick={handleSaveProfile} disabled={savingProfile}>
+              {savingProfile?"Saving...":"Save profile"}
+            </button>
+
+            {userRole==="broker"&&(
+              <div className="profile-stats">
+                <div className="profile-stat"><div className="profile-stat-n">{myListings.length}</div><div className="profile-stat-l">Listings posted</div></div>
+                <div className="profile-stat"><div className="profile-stat-n">{myLeads.length}</div><div className="profile-stat-l">Inquiries received</div></div>
+                <div className="profile-stat"><div className="profile-stat-n">{myListings.filter(l=>l.status==="rented").length}</div><div className="profile-stat-l">Units rented</div></div>
+              </div>
+            )}
+          </div>
+
+          {viewHistory.length>0&&(
+            <div className="section-card">
+              <div className="section-title">👁 Recently viewed</div>
+              {viewHistory.slice(0,10).map((v,i)=>(
+                <div className="history-row" key={i} onClick={()=>{const l=listings.find(x=>x.id===v.id);if(l){openListing(l);setView("search");}}}>
+                  <img className="history-thumb" src={v.photo} alt={v.addr} onError={e=>e.target.src=HOOD_PHOTOS["Williamsburg"]} />
+                  <div className="history-info">
+                    <div className="history-addr">{v.addr}</div>
+                    <div className="history-meta">{v.hood} · ${v.rent?.toLocaleString()}/mo</div>
+                  </div>
+                  <div className="history-time">{new Date(v.viewedAt).toLocaleDateString()}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {userRole==="broker"&&myListings.length>0&&(
+            <div className="section-card">
+              <div className="section-title">🏢 My listings</div>
+              {myListings.map(l=>(
+                <div className="lrow" key={l.id} onClick={()=>{openListing(l);setView("search");}} style={{cursor:"pointer"}}>
+                  <img className="lthumb" src={l.photo} alt="" onError={e=>e.target.src=HOOD_PHOTOS["Williamsburg"]} />
+                  <div className="linfo"><div className="laddr">{l.addr}</div><div className="lmeta">{l.hood} · ${l.rent?.toLocaleString()}/mo · {l.beds} BR</div></div>
+                  <span className={l.status==="active"?"badge-a":"badge-r"}>{l.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* PUBLIC BROKER PAGE */}
+      {view==="broker-public"&&publicBroker&&(
+        <div className="broker-pub">
+          <button className="btn btn-s" style={{marginBottom:20,fontSize:12}} onClick={()=>setView("search")}>← Back to search</button>
+          <div className="broker-pub-header">
+            <div style={{display:"flex",justifyContent:"center",marginBottom:4}}>
+              <Avatar size={80} name={publicBroker.name} url="" style={{border:"3px solid #3b1f8c"}} />
+            </div>
+            <div className="broker-pub-name">{publicBroker.name}</div>
+            <div className="broker-pub-role">Real Estate Broker · New York City</div>
+            <div className="broker-pub-bio">Helping clients find their perfect NYC apartment. Specializing in Brooklyn and Manhattan neighborhoods.</div>
+            <div className="broker-pub-stats">
+              <div className="broker-pub-stat"><div className="broker-pub-stat-n">{listings.filter(l=>l.broker===publicBroker.name).length}</div><div className="broker-pub-stat-l">Listings</div></div>
+              <div className="broker-pub-stat"><div className="broker-pub-stat-n">{listings.filter(l=>l.broker===publicBroker.name&&l.status==="rented").length}</div><div className="broker-pub-stat-l">Rented</div></div>
+              <div className="broker-pub-stat"><div className="broker-pub-stat-n">{listings.filter(l=>l.broker===publicBroker.name).reduce((a,l)=>a+(l.leads||[]).length,0)}</div><div className="broker-pub-stat-l">Inquiries</div></div>
+            </div>
+          </div>
+          <div style={{marginBottom:12}}><span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{publicBroker.name}'s active listings</span></div>
+          <div className="lgrid">
+            {listings.filter(l=>l.broker===publicBroker.name&&l.status==="active").length===0
+              ?<div className="empty">No active listings.</div>
+              :listings.filter(l=>l.broker===publicBroker.name&&l.status==="active").map(l=>(
+                <div className="lcard" key={l.id} onClick={()=>{openListing(l);setView("search");}}>
+                  <img className="lcard-img" src={l.photo} alt={l.addr} onError={e=>e.target.src=HOOD_PHOTOS["Williamsburg"]} />
+                  <div className="lcard-body">
+                    <div className="lcard-price">${l.rent.toLocaleString()}/mo</div>
+                    <div className="lcard-addr">{l.addr}, {l.hood}</div>
+                    <div className="tags"><span className="tag">{l.beds} BR</span><span className="tag">{l.hood}</span></div>
+                    <div className="lcard-desc">{l.desc}</div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* HOME */}
-      {view==="home" && (
+      {view==="home"&&(
         <>
           <div className="hero">
             <div className="hero-eyebrow">✦ AI-powered NYC real estate</div>
             <h1 className="hero-title">Your next home<br/>in <span>New York City</span></h1>
             <p className="hero-sub">The smarter way to rent, buy, and list — with AI built into every step.</p>
             <div className="search-card">
-              <div className="search-tabs">
-                {["rent","buy","sell"].map(t=>(
-                  <button key={t} className={`search-tab${homeTab===t?" active":""}`} onClick={()=>setHomeTab(t)}>
-                    {t.charAt(0).toUpperCase()+t.slice(1)}
-                  </button>
-                ))}
-              </div>
+              <div className="search-tabs">{["rent","buy","sell"].map(t=><button key={t} className={`search-tab${homeTab===t?" active":""}`} onClick={()=>setHomeTab(t)}>{t.charAt(0).toUpperCase()+t.slice(1)}</button>)}</div>
               <div className="search-body">
                 <div className="search-row">
-                  <div className="search-field" style={{flex:2}}>
-                    <span className="search-label">Location</span>
-                    <select className="search-select"><option>Choose neighborhoods or boroughs</option>{["Williamsburg","Greenpoint","Crown Heights","Hell's Kitchen","Fort Greene","Astoria","Park Slope","Bushwick"].map(n=><option key={n}>{n}</option>)}</select>
-                  </div>
+                  <div className="search-field" style={{flex:2}}><span className="search-label">Location</span><select className="search-select"><option>Choose neighborhoods or boroughs</option>{["Williamsburg","Greenpoint","Crown Heights","Hell's Kitchen","Fort Greene","Astoria","Park Slope","Bushwick"].map(n=><option key={n}>{n}</option>)}</select></div>
                   <div className="search-field"><span className="search-label">Min Price</span><select className="search-select"><option>Min</option>{["1500","2000","2500","3000","3500","4000"].map(p=><option key={p}>${parseInt(p).toLocaleString()}</option>)}</select></div>
                   <div className="search-field"><span className="search-label">Max Price</span><select className="search-select"><option>Max</option>{["2000","2500","3000","3500","4000","5000","6000"].map(p=><option key={p}>${parseInt(p).toLocaleString()}</option>)}</select></div>
-                  <button className="search-btn" onClick={()=>setView("search")}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Search
-                  </button>
+                  <button className="search-btn" onClick={()=>setView("search")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Search</button>
                 </div>
-                <div className="search-hint">
-                  {user ? `Welcome back, ${user.displayName||user.email?.split("@")[0]}!` : <>Find your home faster: <a onClick={()=>openAuth("signup","renter")}>sign up</a> or <a onClick={()=>openAuth("login","renter")}>log in</a></>}
-                </div>
+                <div className="search-hint">{user?`Welcome back, ${displayName}!`:<>Find your home faster: <a onClick={()=>openAuth("signup","renter")}>sign up</a> or <a onClick={()=>openAuth("login","renter")}>log in</a></>}</div>
               </div>
             </div>
           </div>
@@ -645,15 +775,15 @@ export default function RealEstateAI() {
 
       {/* SEARCH */}
       <div className={`pg${view==="search"?" show":""}`}>
-        <div className="ph"><h2>Find your apartment</h2><p>Search with filters or describe what you want in plain English</p></div>
+        <div className="ph"><h2>Find your apartment</h2><p>Search with filters or describe what you want</p></div>
         <div className="aibox">
           <div className="ailabel">✦ AI search</div>
           <div className="arow">
             <input className="ainp" placeholder='Try: "sunny 2BR in Williamsburg under $3,500 near L train"' value={nlQuery} onChange={e=>{setNlQuery(e.target.value);setNlResults(null);}} onKeyDown={e=>e.key==="Enter"&&doNLSearch()} />
             <button className="btn btn-ai" onClick={doNLSearch}>Search</button>
           </div>
-          {nlResults && nlResults.length===0 && <p style={{fontSize:12,color:"#7c6aaa",marginTop:10}}>No matches. Try different words.</p>}
-          {nlResults && nlResults.length>0 && <p style={{fontSize:12,color:"#a78bfa",marginTop:10}}>✦ {nlResults.length} AI match{nlResults.length!==1?"es":""} for "{nlQuery}"</p>}
+          {nlResults&&nlResults.length===0&&<p style={{fontSize:12,color:"#7c6aaa",marginTop:10}}>No matches. Try different words.</p>}
+          {nlResults&&nlResults.length>0&&<p style={{fontSize:12,color:"#a78bfa",marginTop:10}}>✦ {nlResults.length} match{nlResults.length!==1?"es":""} for "{nlQuery}"</p>}
         </div>
         <div className="filters">
           <div className="fg"><span className="fl">Neighborhood</span><select value={fHood} onChange={e=>setFHood(e.target.value)}><option>All</option>{["Williamsburg","Greenpoint","Crown Heights","Hell's Kitchen","Fort Greene","Astoria","Park Slope","Bushwick"].map(n=><option key={n}>{n}</option>)}</select></div>
@@ -663,14 +793,18 @@ export default function RealEstateAI() {
         </div>
         <div className="cnt">{(nlResults||filtered).length} listing{(nlResults||filtered).length!==1?"s":""} found</div>
         <div className="lgrid">
-          {(nlResults||filtered).length===0 ? <div className="empty" style={{gridColumn:"1/-1"}}>No listings match.</div>
-            : (nlResults||filtered).map(l=>(
+          {(nlResults||filtered).length===0?<div className="empty" style={{gridColumn:"1/-1"}}>No listings match.</div>
+            :(nlResults||filtered).map(l=>(
               <div className="lcard" key={l.id} onClick={()=>openListing(l)}>
                 <img className="lcard-img" src={l.photo} alt={l.addr} onError={e=>e.target.src=HOOD_PHOTOS["Williamsburg"]} />
                 <div className="lcard-body">
                   <div className="lcard-price">${l.rent.toLocaleString()}/mo</div>
                   <div className="lcard-addr">{l.addr}, {l.hood}</div>
-                  <div className="tags"><span className="tag">{l.beds} BR</span><span className="tag">{l.hood}</span><span className="tag">by {l.broker}</span></div>
+                  <div className="tags">
+                    <span className="tag">{l.beds} BR</span>
+                    <span className="tag">{l.hood}</span>
+                    <span className="tag broker-tag" onClick={e=>{e.stopPropagation();setPublicBroker({name:l.broker,id:l.brokerId});setView("broker-public");}}>by {l.broker} →</span>
+                  </div>
                   <div className="lcard-desc">{l.desc}</div>
                 </div>
               </div>
@@ -680,7 +814,7 @@ export default function RealEstateAI() {
 
       {/* BROKER DASHBOARD */}
       <div className={`pg${view==="broker"?" show":""}`}>
-        <div className="ph"><h2>Broker dashboard</h2><p>Welcome back, {user?.displayName||user?.email?.split("@")[0]||"Broker"}.</p></div>
+        <div className="ph"><h2>Broker dashboard</h2><p>Welcome back, {displayName}.</p></div>
         <div className="stats">
           <div className="stat"><div className="stat-n">{myListings.length}</div><div className="stat-l">Listings</div></div>
           <div className="stat"><div className="stat-n">{myListings.filter(l=>l.status==="active").length}</div><div className="stat-l">Active</div></div>
@@ -690,11 +824,11 @@ export default function RealEstateAI() {
         <div className="two">
           <div className="card">
             <div className="card-t">My listings</div>
-            {myListings.length===0 ? <div className="empty">No listings yet.</div>
-              : myListings.map(l=>(
+            {myListings.length===0?<div className="empty">No listings yet.</div>
+              :myListings.map(l=>(
                 <div className="lrow" key={l.id}>
                   <img className="lthumb" src={l.photo} alt="" onError={e=>e.target.src=HOOD_PHOTOS["Williamsburg"]} />
-                  <div className="linfo"><div className="laddr">{l.addr}</div><div className="lmeta">{l.hood} · ${l.rent.toLocaleString()}/mo · {l.beds} BR</div></div>
+                  <div className="linfo"><div className="laddr">{l.addr}</div><div className="lmeta">{l.hood} · ${l.rent?.toLocaleString()}/mo · {l.beds} BR</div></div>
                   <span className={l.status==="active"?"badge-a":"badge-r"}>{l.status}</span>
                 </div>
               ))}
@@ -702,8 +836,8 @@ export default function RealEstateAI() {
           </div>
           <div className="card">
             <div className="card-t">Renter inquiries</div>
-            {myLeads.length===0 ? <div className="empty">No inquiries yet.</div>
-              : myLeads.map((ld,i)=>(
+            {myLeads.length===0?<div className="empty">No inquiries yet.</div>
+              :myLeads.map((ld,i)=>(
                 <div className="lead-row" key={i}>
                   <div className="lead-ico">✉</div>
                   <div><div className="lead-addr">{ld.listing.addr}</div><div className="lead-msg">"{ld.message}"</div><div className="lead-time">{ld.time}</div></div>
@@ -726,11 +860,11 @@ export default function RealEstateAI() {
             <label className="flabel">Monthly rent ($)</label>
             <input className="finput" type="number" placeholder="e.g. 3200" value={newL.rent} onChange={e=>setNewL(p=>({...p,rent:e.target.value}))} />
             <div className="btn-row"><button className="btn btn-ai" onClick={suggestPrice}>⬡ AI price suggestion</button></div>
-            {priceHint && <div className="price-hint">✦ AI suggests: {priceHint}</div>}
+            {priceHint&&<div className="price-hint">✦ AI suggests: {priceHint}</div>}
           </div>
           <div className="fgroup">
             <label className="flabel">Photos</label>
-            {newL.photo && <img className="photo-preview" src={newL.photo} alt="preview" />}
+            {newL.photo&&<img className="photo-preview" src={newL.photo} alt="preview" />}
             <div className="btn-row" style={{marginTop:8}}><button className="btn btn-ai" onClick={findPhotos}>🖼 Find photos with AI</button></div>
           </div>
           <div className="fgroup">
