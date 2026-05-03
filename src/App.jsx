@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
@@ -45,10 +45,40 @@ async function claudeAI(prompt, max=300) {
   return d.content?.[0]?.text?.trim() || "";
 }
 
+// Compress image to base64 — max 150x150px, stored in Firestore (free)
+function compressImage(file, maxSize=150) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(maxSize/img.width, maxSize/img.height, 1);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.7));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function avatarColor(name) {
+  const colors = ["#7c3aed","#2563eb","#059669","#d97706","#dc2626","#0891b2","#9333ea"];
+  let hash = 0;
+  for(let i=0;i<(name||"U").length;i++) hash = (name||"U").charCodeAt(i) + ((hash<<5)-hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
 const SkylineLogo = () => (
   <svg width="180" height="36" viewBox="0 0 260 50" xmlns="http://www.w3.org/2000/svg">
-    <defs><linearGradient id="nsky4" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0a0a1a"/><stop offset="60%" stopColor="#1a1040"/><stop offset="100%" stopColor="#2d1b69"/></linearGradient></defs>
-    <rect width="260" height="50" fill="url(#nsky4)" rx="6"/>
+    <defs><linearGradient id="nsky5" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0a0a1a"/><stop offset="60%" stopColor="#1a1040"/><stop offset="100%" stopColor="#2d1b69"/></linearGradient></defs>
+    <rect width="260" height="50" fill="url(#nsky5)" rx="6"/>
     <rect x="0" y="38" width="260" height="12" fill="#0a0a1a"/>
     <rect x="0" y="36" width="260" height="3" fill="#7c3aed" opacity="0.5"/>
     <rect x="8" y="22" width="8" height="28" fill="#1e1b4b"/><rect x="10" y="18" width="4" height="5" fill="#1e1b4b"/>
@@ -65,14 +95,6 @@ const SkylineLogo = () => (
     <text x="100" y="40" fontSize="6" fill="#7c3aed" fontFamily="-apple-system,system-ui,sans-serif" letterSpacing="3" opacity="0.9">NEW YORK CITY</text>
   </svg>
 );
-
-// Generate a random avatar color based on name
-function avatarColor(name) {
-  const colors = ["#7c3aed","#2563eb","#059669","#d97706","#dc2626","#7c3aed","#0891b2"];
-  let hash = 0;
-  for(let i=0;i<name.length;i++) hash = name.charCodeAt(i) + ((hash<<5)-hash);
-  return colors[Math.abs(hash) % colors.length];
-}
 
 export default function RealEstateAI() {
   const [user, setUser] = useState(null);
@@ -100,10 +122,12 @@ export default function RealEstateAI() {
   const [viewHistory, setViewHistory] = useState([]);
   const [publicBroker, setPublicBroker] = useState(null);
 
-  // Profile editing
+  // Profile state
   const [editBio, setEditBio] = useState("");
-  const [editPhotoUrl, setEditPhotoUrl] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [historyConsent, setHistoryConsent] = useState(true);
+  const fileInputRef = useRef(null);
 
   const showToast = (msg, type="ok") => { setToast({msg,type}); setTimeout(()=>setToast(null),3500); };
 
@@ -112,21 +136,21 @@ export default function RealEstateAI() {
       setUser(u);
       if(u) {
         try {
-          const snap = await getDoc(doc(db, "users", u.uid));
+          const snap = await getDoc(doc(db,"users",u.uid));
           if(snap.exists()) {
             const data = snap.data();
             setUserProfile(data);
             setUserRole(data.role||"renter");
             setViewHistory(data.viewHistory||[]);
             setEditBio(data.bio||"");
-            setEditPhotoUrl(data.photoURL||u.photoURL||"");
+            setHistoryConsent(data.historyConsent!==false);
           } else {
-            const newProfile = { role:"renter", bio:"", viewHistory:[], displayName:u.displayName||"", photoURL:u.photoURL||"", createdAt:Date.now() };
+            const newProfile = { role:"renter", bio:"", viewHistory:[], photoURL:u.photoURL||"", displayName:u.displayName||"", historyConsent:true, createdAt:Date.now() };
             await setDoc(doc(db,"users",u.uid), newProfile);
             setUserProfile(newProfile);
-            setEditPhotoUrl(u.photoURL||"");
+            setHistoryConsent(true);
           }
-        } catch(e) { console.log("Firestore error:", e); }
+        } catch(e) { console.error("Firestore:", e); }
       } else { setUserProfile(null); setViewHistory([]); }
       setAuthLoading(false);
     });
@@ -137,11 +161,20 @@ export default function RealEstateAI() {
   const myLeads = myListings.flatMap(l=>(l.leads||[]).map(ld=>({...ld,listing:l})));
   const filtered = listings.filter(l=>{
     if(l.status!=="active") return false;
-    if(fHood!=="All" && l.hood!==fHood) return false;
-    if(fBeds!=="Any" && l.beds!==parseInt(fBeds)) return false;
+    if(fHood!=="All"&&l.hood!==fHood) return false;
+    if(fBeds!=="Any"&&l.beds!==parseInt(fBeds)) return false;
     if(l.rent>fRent) return false;
     return true;
   });
+
+  const displayName = user?.displayName||user?.email?.split("@")[0]||"User";
+  const photoURL = userProfile?.photoURL||user?.photoURL||"";
+
+  const Avatar = ({size=28, name=displayName, url=photoURL, style={}}) => (
+    <div style={{width:size,height:size,borderRadius:"50%",background:url?"#0d0d1a":avatarColor(name),display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.38,fontWeight:700,color:"white",overflow:"hidden",flexShrink:0,border:"2px solid #3b1f8c",...style}}>
+      {url ? <img src={url} alt={name} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";e.target.parentElement.style.background=avatarColor(name);}} /> : name?.[0]?.toUpperCase()||"U"}
+    </div>
+  );
 
   async function handleGoogleLogin(role) {
     setAuthBusy(true); setAuthError("");
@@ -150,9 +183,9 @@ export default function RealEstateAI() {
       const u = cred.user;
       const snap = await getDoc(doc(db,"users",u.uid));
       if(!snap.exists()) {
-        await setDoc(doc(db,"users",u.uid), { role:role||"renter", bio:"", viewHistory:[], displayName:u.displayName||"", photoURL:u.photoURL||"", createdAt:Date.now() });
+        await setDoc(doc(db,"users",u.uid), { role:role||"renter", bio:"", viewHistory:[], photoURL:u.photoURL||"", displayName:u.displayName||"", historyConsent:true, createdAt:Date.now() });
       }
-      const data = snap.exists() ? snap.data() : { role:role||"renter" };
+      const data = snap.exists()?snap.data():{role:role||"renter"};
       setUserRole(data.role||role||"renter");
       setAuthView(false);
       setView(role==="broker"?"broker":"search");
@@ -165,21 +198,19 @@ export default function RealEstateAI() {
     setAuthBusy(true); setAuthError("");
     try {
       if(authMode==="signup") {
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        if(name) await updateProfile(cred.user, { displayName: name });
-        await setDoc(doc(db,"users",cred.user.uid), { role:userRole||"renter", bio:"", viewHistory:[], displayName:name||"", photoURL:"", createdAt:Date.now() });
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
+        const cred = await createUserWithEmailAndPassword(auth,email,password);
+        if(name) await updateProfile(cred.user,{displayName:name});
+        await setDoc(doc(db,"users",cred.user.uid),{role:userRole||"renter",bio:"",viewHistory:[],photoURL:"",displayName:name||"",historyConsent:true,createdAt:Date.now()});
+      } else { await signInWithEmailAndPassword(auth,email,password); }
       setAuthView(false);
       setView(userRole==="broker"?"broker":"search");
       showToast(authMode==="signup"?"Account created! Welcome.":"Welcome back!");
     } catch(e) {
-      const msg = e.code==="auth/email-already-in-use"?"Email already in use."
-        : e.code==="auth/wrong-password"?"Wrong password."
-        : e.code==="auth/user-not-found"?"No account found — sign up first."
-        : e.code==="auth/weak-password"?"Password needs 6+ characters."
-        : e.message;
+      const msg=e.code==="auth/email-already-in-use"?"Email already in use."
+        :e.code==="auth/wrong-password"?"Wrong password."
+        :e.code==="auth/user-not-found"?"No account found — sign up first."
+        :e.code==="auth/weak-password"?"Password needs 6+ characters."
+        :e.message;
       setAuthError(msg);
     }
     setAuthBusy(false);
@@ -189,31 +220,48 @@ export default function RealEstateAI() {
     await signOut(auth); setUserRole("renter"); setView("home"); showToast("Signed out.");
   }
 
-  function openAuth(mode, role) {
+  function openAuth(mode,role) {
     setAuthMode(mode||"login"); setUserRole(role||"renter");
     setAuthError(""); setEmail(""); setPassword(""); setName(""); setAuthView(true);
+  }
+
+  // Photo upload — compresses to base64, saves to Firestore (no Storage needed)
+  async function handlePhotoUpload(e) {
+    const file = e.target.files?.[0];
+    if(!file||!user) return;
+    if(file.size>10*1024*1024){showToast("Photo must be under 10MB","warn");return;}
+    setUploadingPhoto(true);
+    try {
+      const base64 = await compressImage(file, 200);
+      await setDoc(doc(db,"users",user.uid),{photoURL:base64},{merge:true});
+      await updateProfile(user,{photoURL:""});
+      setUserProfile(p=>({...p,photoURL:base64}));
+      showToast("Profile photo updated!");
+    } catch(e) { showToast("Upload failed","warn"); console.error(e); }
+    setUploadingPhoto(false);
+    e.target.value="";
   }
 
   async function handleSaveProfile() {
     if(!user) return;
     setSavingProfile(true);
     try {
-      await setDoc(doc(db,"users",user.uid), { bio:editBio, photoURL:editPhotoUrl }, {merge:true});
-      if(editPhotoUrl) await updateProfile(user, { photoURL: editPhotoUrl });
-      setUserProfile(p=>({...p, bio:editBio, photoURL:editPhotoUrl}));
+      await setDoc(doc(db,"users",user.uid),{bio:editBio,historyConsent},{merge:true});
+      setUserProfile(p=>({...p,bio:editBio,historyConsent}));
+      if(!historyConsent) setViewHistory([]);
       showToast("Profile saved!");
-    } catch { showToast("Save failed — check Firebase rules","warn"); }
+    } catch { showToast("Save failed","warn"); }
     setSavingProfile(false);
   }
 
   async function trackView(listing) {
-    if(!user) return;
+    if(!user||!historyConsent) return;
     const alreadySeen = viewHistory.find(v=>v.id===listing.id);
     if(alreadySeen) return;
-    const entry = { id:listing.id, addr:listing.addr, hood:listing.hood, rent:listing.rent, photo:listing.photo, viewedAt:Date.now() };
-    const newHistory = [entry, ...viewHistory].slice(0,20);
+    const entry = {id:listing.id,addr:listing.addr,hood:listing.hood,rent:listing.rent,photo:listing.photo,viewedAt:Date.now()};
+    const newHistory = [entry,...viewHistory].slice(0,30);
     setViewHistory(newHistory);
-    try { await updateDoc(doc(db,"users",user.uid), { viewHistory: arrayUnion(entry) }); } catch {}
+    try { await updateDoc(doc(db,"users",user.uid),{viewHistory:arrayUnion(entry)}); } catch {}
   }
 
   async function openListing(l) {
@@ -221,17 +269,17 @@ export default function RealEstateAI() {
     trackView(l);
     setBioLoading(true);
     try {
-      const bio = await claudeAI(`Write 2 sentences about ${l.hood}, NYC. Cover subway access, vibe, who would love living here.`, 130);
+      const bio = await claudeAI(`Write 2 sentences about ${l.hood}, NYC. Cover subway access, vibe, who would love it.`,130);
       setHoodBio(bio);
     } catch {}
     setBioLoading(false);
   }
 
   async function genDesc() {
-    if(!newL.addr||!newL.beds||!newL.rent){ showToast("Fill address, beds, rent first","warn"); return; }
+    if(!newL.addr||!newL.beds||!newL.rent){showToast("Fill address, beds, rent first","warn");return;}
     setAiLoading(true); setAiTask("Writing listing description...");
     try {
-      const res = await claudeAI(`Write a compelling NYC apartment listing description under 80 words for: ${newL.beds}BR in ${newL.hood}, $${newL.rent}/mo at ${newL.addr}. Be specific. No "Welcome to" opener.`);
+      const res = await claudeAI(`Write a compelling NYC apartment listing description under 80 words for: ${newL.beds}BR in ${newL.hood}, $${newL.rent}/mo at ${newL.addr}. No "Welcome to" opener.`);
       setNewL(p=>({...p,desc:res})); showToast("AI description written!");
     } catch { showToast("API error","warn"); }
     setAiLoading(false); setAiTask("");
@@ -244,10 +292,10 @@ export default function RealEstateAI() {
   }
 
   async function suggestPrice() {
-    if(!newL.beds||!newL.hood){ showToast("Pick neighborhood and beds first","warn"); return; }
+    if(!newL.beds||!newL.hood){showToast("Pick neighborhood and beds first","warn");return;}
     setAiLoading(true); setAiTask("Checking NYC prices...");
     try {
-      const res = await claudeAI(`Typical rent for ${newL.beds}BR in ${newL.hood}, NYC 2025? Return ONLY a range like "$2,800–$3,400".`, 25);
+      const res = await claudeAI(`Typical rent for ${newL.beds}BR in ${newL.hood}, NYC 2025? Return ONLY a range like "$2,800–$3,400".`,25);
       setPriceHint(res);
     } catch { showToast("API error","warn"); }
     setAiLoading(false); setAiTask("");
@@ -258,7 +306,7 @@ export default function RealEstateAI() {
     setAiLoading(true); setAiTask("Finding matches...");
     try {
       const summary = listings.filter(l=>l.status==="active").map(l=>`ID:${l.id}|${l.addr},${l.hood}|${l.beds}BR|$${l.rent}/mo`).join("\n");
-      const res = await claudeAI(`Renter query: "${nlQuery}"\nListings:\n${summary}\nReturn ONLY JSON array like [2,1]. Max 3. [] if no match.`, 50);
+      const res = await claudeAI(`Renter query: "${nlQuery}"\nListings:\n${summary}\nReturn ONLY JSON array like [2,1]. Max 3. [] if no match.`,50);
       const match = res.match(/\[[\d,\s]*\]/);
       if(match) setNlResults(JSON.parse(match[0]).map(id=>listings.find(l=>l.id===id)).filter(Boolean));
       else setNlResults([]);
@@ -267,39 +315,29 @@ export default function RealEstateAI() {
   }
 
   async function genCoverLetter() {
-    if(!contactMsg.trim()){ showToast("Write your message first","warn"); return; }
+    if(!contactMsg.trim()){showToast("Write your message first","warn");return;}
     setCoverLoading(true);
     try {
-      const res = await claudeAI(`Short professional cover letter under 80 words for renter applying for: ${selected.addr}, ${selected.hood}, ${selected.beds}BR, $${selected.rent}/mo. Note: "${contactMsg}". Warm and persuasive.`, 150);
+      const res = await claudeAI(`Short professional cover letter under 80 words for renter applying for: ${selected.addr}, ${selected.hood}, ${selected.beds}BR, $${selected.rent}/mo. Note: "${contactMsg}". Warm and persuasive.`,150);
       setCoverLetter(res);
     } catch { showToast("API error","warn"); }
     setCoverLoading(false);
   }
 
   async function sendMessage() {
-    if(!contactMsg.trim()){ showToast("Type a message first","warn"); return; }
-    const lead = { id:Date.now(), message:contactMsg, renter:user?.displayName||user?.email||"Renter", time:new Date().toLocaleTimeString() };
+    if(!contactMsg.trim()){showToast("Type a message first","warn");return;}
+    const lead={id:Date.now(),message:contactMsg,renter:user?.displayName||user?.email||"Renter",time:new Date().toLocaleTimeString()};
     setListings(prev=>prev.map(l=>l.id===selected.id?{...l,leads:[...(l.leads||[]),lead]}:l));
     setContactSent(true); showToast("Message sent!");
   }
 
   function publishListing() {
-    if(!newL.addr||!newL.beds||!newL.rent||!newL.desc){ showToast("Fill all fields first","warn"); return; }
-    const l = { id:Date.now(), ...newL, rent:parseInt(newL.rent), beds:parseInt(newL.beds), status:"active", broker:user?.displayName||user?.email||"Broker", brokerId:user?.uid||"", photo:newL.photo||HOOD_PHOTOS[newL.hood], leads:[] };
+    if(!newL.addr||!newL.beds||!newL.rent||!newL.desc){showToast("Fill all fields first","warn");return;}
+    const l={id:Date.now(),...newL,rent:parseInt(newL.rent),beds:parseInt(newL.beds),status:"active",broker:user?.displayName||user?.email||"Broker",brokerId:user?.uid||"",photo:newL.photo||HOOD_PHOTOS[newL.hood],leads:[]};
     setListings(prev=>[l,...prev]);
     setNewL({addr:"",hood:"Williamsburg",beds:"",rent:"",desc:"",photo:""});
     setPriceHint(""); setView("broker"); showToast("Listing published!");
   }
-
-  const displayName = user?.displayName||user?.email?.split("@")[0]||"User";
-  const photoURL = userProfile?.photoURL||user?.photoURL||"";
-  const color = avatarColor(displayName);
-
-  const Avatar = ({size=28, name=displayName, url=photoURL, style={}}) => (
-    <div style={{width:size,height:size,borderRadius:"50%",background:url?"transparent":color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.4,fontWeight:700,color:"white",overflow:"hidden",flexShrink:0,...style}}>
-      {url ? <img src={url} alt={name} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"} /> : name?.[0]?.toUpperCase()||"U"}
-    </div>
-  );
 
   const css = `
     *{box-sizing:border-box;margin:0;padding:0;}
@@ -319,6 +357,7 @@ export default function RealEstateAI() {
     .tnbtn.solid:hover{background:#6d28d9;}
     .tnbtn.sm{font-size:12px;padding:5px 12px;}
 
+    /* AUTH */
     .auth-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;}
     .auth-modal{background:#13132a;border:1px solid #3b1f8c;border-radius:18px;padding:32px;max-width:420px;width:100%;box-shadow:0 0 80px rgba(124,58,237,.3);}
     .auth-logo{text-align:center;margin-bottom:20px;}
@@ -346,9 +385,13 @@ export default function RealEstateAI() {
     .auth-error{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:8px 12px;font-size:12px;color:#fca5a5;margin-bottom:10px;text-align:center;}
     .auth-close{float:right;background:none;border:none;color:#7c6aaa;font-size:20px;cursor:pointer;line-height:1;margin-top:-8px;}
 
+    /* PROFILE */
     .profile-page{max-width:680px;margin:0 auto;padding:32px 24px;}
     .profile-card{background:#13132a;border:1px solid #2d1b69;border-radius:16px;padding:28px;margin-bottom:20px;}
-    .profile-top{display:flex;align-items:flex-start;gap:20px;margin-bottom:20px;}
+    .profile-top{display:flex;align-items:flex-start;gap:20px;margin-bottom:24px;}
+    .photo-upload-wrap{position:relative;cursor:pointer;flex-shrink:0;}
+    .photo-upload-wrap:hover .photo-overlay{opacity:1;}
+    .photo-overlay{position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;font-size:20px;}
     .profile-info{flex:1;}
     .profile-name{font-size:22px;font-weight:800;color:#fff;margin-bottom:4px;}
     .profile-role{font-size:12px;color:#a78bfa;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
@@ -357,17 +400,37 @@ export default function RealEstateAI() {
     .profile-stat{background:#0d0d1a;border:1px solid #2d1b69;border-radius:10px;padding:14px;text-align:center;}
     .profile-stat-n{font-size:24px;font-weight:800;color:#fff;}
     .profile-stat-l{font-size:11px;color:#7c6aaa;margin-top:2px;}
+
+    /* CONSENT TOGGLE */
+    .consent-box{background:#0d0d1a;border:1px solid #2d1b69;border-radius:10px;padding:14px 16px;margin-bottom:14px;}
+    .consent-row{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+    .consent-label{font-size:13px;color:#e0d4ff;font-weight:500;}
+    .consent-desc{font-size:11px;color:#7c6aaa;margin-top:3px;line-height:1.4;}
+    .toggle{position:relative;width:42px;height:24px;flex-shrink:0;}
+    .toggle input{opacity:0;width:0;height:0;}
+    .toggle-slider{position:absolute;inset:0;background:#2d1b69;border-radius:12px;cursor:pointer;transition:.2s;}
+    .toggle-slider:before{content:"";position:absolute;width:18px;height:18px;left:3px;bottom:3px;background:#7c6aaa;border-radius:50%;transition:.2s;}
+    .toggle input:checked + .toggle-slider{background:#7c3aed;}
+    .toggle input:checked + .toggle-slider:before{transform:translateX(18px);background:#fff;}
+
+    /* HISTORY */
     .section-card{background:#13132a;border:1px solid #2d1b69;border-radius:16px;padding:20px;margin-bottom:16px;}
-    .section-title{font-size:13px;font-weight:700;color:#7c6aaa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;}
-    .history-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #1e1b4b;cursor:pointer;}
+    .section-title{font-size:13px;font-weight:700;color:#7c6aaa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;}
+    .section-count{font-size:11px;color:#4c3a8a;font-weight:400;text-transform:none;letter-spacing:0;}
+    .history-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #1e1b4b;cursor:pointer;transition:opacity .15s;}
     .history-row:last-child{border-bottom:none;}
     .history-row:hover{opacity:.8;}
-    .history-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;}
+    .history-thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid #2d1b69;}
     .history-info{flex:1;}
-    .history-addr{font-size:13px;font-weight:600;color:#e0d4ff;}
-    .history-meta{font-size:11px;color:#7c6aaa;}
-    .history-time{font-size:10px;color:#4c3a8a;white-space:nowrap;}
+    .history-addr{font-size:13px;font-weight:700;color:#e0d4ff;}
+    .history-hood{font-size:11px;color:#a78bfa;margin-top:1px;}
+    .history-meta{font-size:11px;color:#7c6aaa;margin-top:2px;}
+    .history-time{font-size:10px;color:#4c3a8a;white-space:nowrap;text-align:right;}
+    .history-price{font-size:13px;font-weight:700;color:#fff;white-space:nowrap;}
+    .clear-btn{font-size:11px;color:#7c6aaa;background:none;border:1px solid #3b1f8c;border-radius:6px;padding:3px 8px;cursor:pointer;font-family:inherit;}
+    .clear-btn:hover{color:#fca5a5;border-color:#7f1d1d;}
 
+    /* BROKER PUBLIC */
     .broker-pub{max-width:700px;margin:0 auto;padding:32px 24px;}
     .broker-pub-header{background:#13132a;border:1px solid #2d1b69;border-radius:16px;padding:28px;margin-bottom:20px;text-align:center;}
     .broker-pub-name{font-size:22px;font-weight:800;color:#fff;margin:12px 0 4px;}
@@ -378,6 +441,7 @@ export default function RealEstateAI() {
     .broker-pub-stat-n{font-size:20px;font-weight:800;color:#fff;}
     .broker-pub-stat-l{font-size:11px;color:#7c6aaa;}
 
+    /* MAIN */
     .hero{background:linear-gradient(180deg,#0a0a1a 0%,#1a1040 50%,#2d1b69 100%);padding:70px 24px 60px;text-align:center;border-bottom:1px solid #3b1f8c;}
     .hero-eyebrow{font-size:12px;font-weight:700;color:#a78bfa;letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px;}
     .hero-title{font-size:clamp(32px,5vw,56px);font-weight:800;color:#fff;line-height:1.1;margin-bottom:12px;letter-spacing:-.5px;}
@@ -392,7 +456,6 @@ export default function RealEstateAI() {
     .search-field{flex:1;display:flex;flex-direction:column;gap:5px;min-width:110px;}
     .search-label{font-size:11px;font-weight:700;color:#7c6aaa;text-transform:uppercase;letter-spacing:.06em;}
     .search-select{padding:10px 14px;border:1.5px solid #3b1f8c;border-radius:8px;font-size:14px;color:#e0d4ff;background:#0d0d1a;font-family:inherit;height:46px;}
-    .search-select:focus{outline:none;border-color:#7c3aed;}
     .search-btn{background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:0 28px;font-size:15px;font-weight:700;cursor:pointer;height:46px;display:flex;align-items:center;gap:8px;font-family:inherit;}
     .search-btn:hover{background:#6d28d9;}
     .search-hint{font-size:12px;color:#7c6aaa;margin-top:12px;text-align:center;}
@@ -417,8 +480,8 @@ export default function RealEstateAI() {
     .lcard-addr{font-size:12px;color:#7c6aaa;margin-bottom:8px;}
     .tags{display:flex;gap:5px;flex-wrap:wrap;}
     .tag{font-size:11px;padding:3px 8px;border-radius:20px;border:1px solid #3b1f8c;color:#c4b5fd;background:rgba(124,58,237,.1);}
-    .tag.broker-tag{cursor:pointer;color:#a78bfa;}
-    .tag.broker-tag:hover{border-color:#7c3aed;background:rgba(124,58,237,.2);}
+    .tag.bt{cursor:pointer;color:#a78bfa;}
+    .tag.bt:hover{border-color:#7c3aed;}
     .lcard-desc{font-size:11px;color:#7c6aaa;margin-top:8px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
     .pg{display:none;padding:28px 24px;max-width:1100px;margin:0 auto;}
     .pg.show{display:block;}
@@ -503,6 +566,7 @@ export default function RealEstateAI() {
     .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1b4b;border:1px solid #7c3aed;color:#e0d4ff;padding:11px 22px;border-radius:8px;font-size:13px;z-index:999;white-space:nowrap;}
     .toast.warn{background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5;}
     input[type=range]{accent-color:#7c3aed;}
+    input[type=file]{display:none;}
   `;
 
   if(authLoading) return (
@@ -517,11 +581,13 @@ export default function RealEstateAI() {
   return (
     <>
       <style>{css}</style>
-      {toast && <div className={`toast${toast.type==="warn"?" warn":""}`}>{toast.msg}</div>}
-      {aiLoading && <div className="ai-overlay"><div className="ai-box"><div className="big-spin"></div><p>{aiTask}</p></div></div>}
+      <input type="file" ref={fileInputRef} accept="image/*" onChange={handlePhotoUpload} style={{display:"none"}} />
 
-      {/* AUTH MODAL */}
-      {authView && (
+      {toast&&<div className={`toast${toast.type==="warn"?" warn":""}`}>{toast.msg}</div>}
+      {aiLoading&&<div className="ai-overlay"><div className="ai-box"><div className="big-spin"></div><p>{aiTask}</p></div></div>}
+
+      {/* AUTH */}
+      {authView&&(
         <div className="auth-overlay" onClick={()=>setAuthView(false)}>
           <div className="auth-modal" onClick={e=>e.stopPropagation()}>
             <button className="auth-close" onClick={()=>setAuthView(false)}>✕</button>
@@ -542,8 +608,8 @@ export default function RealEstateAI() {
               {authBusy?"Signing in...":"Continue with Google"}
             </button>
             <div className="divider-auth">or use email</div>
-            {authError && <div className="auth-error">{authError}</div>}
-            {authMode==="signup" && <input className="auth-input" placeholder="Full name" value={name} onChange={e=>setName(e.target.value)} />}
+            {authError&&<div className="auth-error">{authError}</div>}
+            {authMode==="signup"&&<input className="auth-input" placeholder="Full name" value={name} onChange={e=>setName(e.target.value)} />}
             <input className="auth-input" type="email" placeholder="Email address" value={email} onChange={e=>setEmail(e.target.value)} />
             <input className="auth-input" type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleEmailAuth()} />
             <button className="auth-submit" onClick={handleEmailAuth} disabled={authBusy||!email||!password}>
@@ -557,13 +623,13 @@ export default function RealEstateAI() {
       )}
 
       {/* LISTING MODAL */}
-      {selected && (
+      {selected&&(
         <div className="modal-overlay" onClick={()=>{setSelected(null);setHoodBio("");setCoverLetter("");}}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
             <div className="modal-head">
               <div>
                 <div className="modal-title">{selected.addr}</div>
-                <div className="modal-sub">{selected.hood} · {selected.beds} BR · <span style={{color:"#a78bfa",cursor:"pointer"}} onClick={e=>{e.stopPropagation();setPublicBroker({name:selected.broker,id:selected.brokerId});setSelected(null);setView("broker-public");}}>by {selected.broker}</span></div>
+                <div className="modal-sub">{selected.hood} · {selected.beds} BR · <span style={{color:"#a78bfa",cursor:"pointer"}} onClick={e=>{e.stopPropagation();setPublicBroker({name:selected.broker,id:selected.brokerId});setSelected(null);setView("broker-public");}}>by {selected.broker} →</span></div>
               </div>
               <button className="modal-x" onClick={()=>{setSelected(null);setHoodBio("");setCoverLetter("");}}>✕</button>
             </div>
@@ -605,7 +671,7 @@ export default function RealEstateAI() {
         <div className="topnav-actions">
           {user?(
             <>
-              <div className="user-chip" onClick={()=>{setEditBio(userProfile?.bio||"");setEditPhotoUrl(userProfile?.photoURL||user?.photoURL||"");setView("profile");}}>
+              <div className="user-chip" onClick={()=>{setEditBio(userProfile?.bio||"");setView("profile");}}>
                 <Avatar size={28} />
                 <span className="user-name">{displayName}</span>
               </div>
@@ -626,28 +692,43 @@ export default function RealEstateAI() {
         <div className="profile-page">
           <div className="profile-card">
             <div className="profile-top">
-              <Avatar size={72} style={{border:"3px solid #3b1f8c"}} />
+              {/* Clickable avatar — opens file picker */}
+              <div className="photo-upload-wrap" onClick={()=>!uploadingPhoto&&fileInputRef.current?.click()} title="Click to upload photo">
+                <Avatar size={80} style={{border:"3px solid #3b1f8c",cursor:"pointer"}} />
+                <div className="photo-overlay">
+                  {uploadingPhoto?<span className="spin"></span>:"📷"}
+                </div>
+              </div>
               <div className="profile-info">
                 <div className="profile-name">{displayName}</div>
                 <div className="profile-role">{userRole}</div>
                 <div className="profile-email">{user.email}</div>
+                <div style={{fontSize:11,color:"#4c3a8a",marginTop:6}}>Click your photo to upload a new one</div>
               </div>
             </div>
 
             <div className="fgroup">
-              <label className="flabel">Profile photo URL</label>
-              <input className="finput" placeholder="Paste a photo URL e.g. https://..." value={editPhotoUrl} onChange={e=>setEditPhotoUrl(e.target.value)} />
-              {editPhotoUrl&&<img src={editPhotoUrl} alt="preview" style={{width:60,height:60,borderRadius:"50%",objectFit:"cover",marginTop:8,border:"2px solid #3b1f8c"}} onError={e=>e.target.style.display="none"} />}
-            </div>
-
-            <div className="fgroup">
               <label className="flabel">Bio</label>
-              <textarea className="farea" placeholder="Tell people about yourself..." value={editBio} onChange={e=>setEditBio(e.target.value)} />
+              <textarea className="farea" placeholder="Tell people about yourself — your NYC neighborhood expertise, what you're looking for, or your experience as a broker..." value={editBio} onChange={e=>setEditBio(e.target.value)} />
             </div>
 
-            <button className="btn btn-p" onClick={handleSaveProfile} disabled={savingProfile}>
+            <button className="btn btn-p" onClick={handleSaveProfile} disabled={savingProfile} style={{marginBottom:16}}>
               {savingProfile?"Saving...":"Save profile"}
             </button>
+
+            {/* View history consent toggle */}
+            <div className="consent-box">
+              <div className="consent-row">
+                <div>
+                  <div className="consent-label">Save my view history</div>
+                  <div className="consent-desc">When enabled, listings you click on are saved to your profile so you can find them again easily. Turn this off to stop tracking.</div>
+                </div>
+                <label className="toggle">
+                  <input type="checkbox" checked={historyConsent} onChange={e=>setHistoryConsent(e.target.checked)} />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
 
             {userRole==="broker"&&(
               <div className="profile-stats">
@@ -658,19 +739,36 @@ export default function RealEstateAI() {
             )}
           </div>
 
-          {viewHistory.length>0&&(
+          {/* View history */}
+          {historyConsent&&(
             <div className="section-card">
-              <div className="section-title">👁 Recently viewed</div>
-              {viewHistory.slice(0,10).map((v,i)=>(
+              <div className="section-title">
+                <span>👁 Recently viewed <span className="section-count">({viewHistory.length} listings)</span></span>
+                {viewHistory.length>0&&<button className="clear-btn" onClick={async()=>{setViewHistory([]);try{await setDoc(doc(db,"users",user.uid),{viewHistory:[]},{merge:true});}catch{}showToast("History cleared");}}>Clear all</button>}
+              </div>
+              {viewHistory.length===0?(
+                <div className="empty">No listings viewed yet. Browse apartments to start building your history.</div>
+              ):viewHistory.slice(0,20).map((v,i)=>(
                 <div className="history-row" key={i} onClick={()=>{const l=listings.find(x=>x.id===v.id);if(l){openListing(l);setView("search");}}}>
                   <img className="history-thumb" src={v.photo} alt={v.addr} onError={e=>e.target.src=HOOD_PHOTOS["Williamsburg"]} />
                   <div className="history-info">
                     <div className="history-addr">{v.addr}</div>
-                    <div className="history-meta">{v.hood} · ${v.rent?.toLocaleString()}/mo</div>
+                    <div className="history-hood">{v.hood}</div>
+                    <div className="history-meta">Viewed {new Date(v.viewedAt).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
                   </div>
-                  <div className="history-time">{new Date(v.viewedAt).toLocaleDateString()}</div>
+                  <div style={{textAlign:"right"}}>
+                    <div className="history-price">${v.rent?.toLocaleString()}/mo</div>
+                    <div className="history-time">{new Date(v.viewedAt).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}</div>
+                  </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {!historyConsent&&(
+            <div className="section-card">
+              <div className="section-title">👁 View history</div>
+              <div className="empty">View history is turned off. Enable it above to track listings you've clicked on.</div>
             </div>
           )}
 
@@ -694,19 +792,23 @@ export default function RealEstateAI() {
         <div className="broker-pub">
           <button className="btn btn-s" style={{marginBottom:20,fontSize:12}} onClick={()=>setView("search")}>← Back to search</button>
           <div className="broker-pub-header">
-            <div style={{display:"flex",justifyContent:"center",marginBottom:4}}>
+            <div style={{display:"flex",justifyContent:"center"}}>
               <Avatar size={80} name={publicBroker.name} url="" style={{border:"3px solid #3b1f8c"}} />
             </div>
             <div className="broker-pub-name">{publicBroker.name}</div>
             <div className="broker-pub-role">Real Estate Broker · New York City</div>
             <div className="broker-pub-bio">Helping clients find their perfect NYC apartment. Specializing in Brooklyn and Manhattan neighborhoods.</div>
             <div className="broker-pub-stats">
-              <div className="broker-pub-stat"><div className="broker-pub-stat-n">{listings.filter(l=>l.broker===publicBroker.name).length}</div><div className="broker-pub-stat-l">Listings</div></div>
+              <div className="broker-pub-stat"><div className="broker-pub-stat-n">{listings.filter(l=>l.broker===publicBroker.name).length}</div><div className="broker-pub-stat-l">Total listings</div></div>
+              <div className="broker-pub-stat"><div className="broker-pub-stat-n">{listings.filter(l=>l.broker===publicBroker.name&&l.status==="active").length}</div><div className="broker-pub-stat-l">Active</div></div>
               <div className="broker-pub-stat"><div className="broker-pub-stat-n">{listings.filter(l=>l.broker===publicBroker.name&&l.status==="rented").length}</div><div className="broker-pub-stat-l">Rented</div></div>
               <div className="broker-pub-stat"><div className="broker-pub-stat-n">{listings.filter(l=>l.broker===publicBroker.name).reduce((a,l)=>a+(l.leads||[]).length,0)}</div><div className="broker-pub-stat-l">Inquiries</div></div>
             </div>
           </div>
-          <div style={{marginBottom:12}}><span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{publicBroker.name}'s active listings</span></div>
+          <div style={{marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{publicBroker.name}'s listings</span>
+            <span style={{fontSize:12,color:"#7c6aaa"}}>{listings.filter(l=>l.broker===publicBroker.name&&l.status==="active").length} active</span>
+          </div>
           <div className="lgrid">
             {listings.filter(l=>l.broker===publicBroker.name&&l.status==="active").length===0
               ?<div className="empty">No active listings.</div>
@@ -803,7 +905,7 @@ export default function RealEstateAI() {
                   <div className="tags">
                     <span className="tag">{l.beds} BR</span>
                     <span className="tag">{l.hood}</span>
-                    <span className="tag broker-tag" onClick={e=>{e.stopPropagation();setPublicBroker({name:l.broker,id:l.brokerId});setView("broker-public");}}>by {l.broker} →</span>
+                    <span className="tag bt" onClick={e=>{e.stopPropagation();setPublicBroker({name:l.broker,id:l.brokerId});setView("broker-public");}}>by {l.broker} →</span>
                   </div>
                   <div className="lcard-desc">{l.desc}</div>
                 </div>
