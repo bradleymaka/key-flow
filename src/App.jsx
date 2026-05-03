@@ -116,7 +116,7 @@ export default function RealEstateAI() {
   const [nlQuery, setNlQuery] = useState(""); const [nlResults, setNlResults] = useState(null);
   const [fHood, setFHood] = useState("All"); const [fBeds, setFBeds] = useState("Any"); const [fRent, setFRent] = useState(5000);
   const [newL, setNewL] = useState({ addr:"", hood:"Williamsburg", beds:"", rent:"", desc:"", photo:"" });
-  const [priceHint, setPriceHint] = useState("");
+
   const [toast, setToast] = useState(null);
   const [hoodBio, setHoodBio] = useState(""); const [bioLoading, setBioLoading] = useState(false);
   const [viewHistory, setViewHistory] = useState([]);
@@ -291,15 +291,7 @@ export default function RealEstateAI() {
     showToast("Photos found!"); setAiLoading(false); setAiTask("");
   }
 
-  async function suggestPrice() {
-    if(!newL.beds||!newL.hood){showToast("Pick neighborhood and beds first","warn");return;}
-    setAiLoading(true); setAiTask("Checking NYC prices...");
-    try {
-      const res = await claudeAI(`Typical rent for ${newL.beds}BR in ${newL.hood}, NYC 2025? Return ONLY a range like "$2,800–$3,400".`,25);
-      setPriceHint(res);
-    } catch { showToast("API error","warn"); }
-    setAiLoading(false); setAiTask("");
-  }
+
 
   async function doNLSearch() {
     if(!nlQuery.trim()) return;
@@ -336,7 +328,7 @@ export default function RealEstateAI() {
     const l={id:Date.now(),...newL,rent:parseInt(newL.rent),beds:parseInt(newL.beds),status:"active",broker:user?.displayName||user?.email||"Broker",brokerId:user?.uid||"",photo:newL.photo||HOOD_PHOTOS[newL.hood],leads:[]};
     setListings(prev=>[l,...prev]);
     setNewL({addr:"",hood:"Williamsburg",beds:"",rent:"",desc:"",photo:""});
-    setPriceHint(""); setView("broker"); showToast("Listing published!");
+    setView("broker"); showToast("Listing published!");
   }
 
   const css = `
@@ -635,6 +627,15 @@ export default function RealEstateAI() {
             </div>
             <img className="modal-img" src={selected.photo} alt={selected.addr} onError={e=>e.target.src=HOOD_PHOTOS["Williamsburg"]} />
             <div className="modal-price">${selected.rent.toLocaleString()}<span style={{fontSize:14,fontWeight:400,color:"#7c6aaa"}}>/mo</span></div>
+            <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selected.addr+", "+selected.hood+", New York, NY")}`} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,background:"rgba(124,58,237,.15)",border:"1px solid #3b1f8c",color:"#c4b5fd",fontSize:12,fontWeight:600,textDecoration:"none",transition:"border-color .15s"}} onMouseOver={e=>e.currentTarget.style.borderColor="#7c3aed"} onMouseOut={e=>e.currentTarget.style.borderColor="#3b1f8c"}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                View on Google Maps
+              </a>
+              <a href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=40.7128,-74.0060&query=${encodeURIComponent(selected.addr+", "+selected.hood+", New York, NY")}`} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,background:"rgba(124,58,237,.15)",border:"1px solid #3b1f8c",color:"#c4b5fd",fontSize:12,fontWeight:600,textDecoration:"none",transition:"border-color .15s"}} onMouseOver={e=>e.currentTarget.style.borderColor="#7c3aed"} onMouseOut={e=>e.currentTarget.style.borderColor="#3b1f8c"}>
+                🌍 Street View
+              </a>
+            </div>
             <div className="modal-desc">{selected.desc}</div>
             {bioLoading?<div className="hood-bio"><div className="hood-bio-lbl">✦ AI neighborhood guide</div><span className="spin"></span>Loading...</div>
               :hoodBio?<div className="hood-bio"><div className="hood-bio-lbl">✦ AI neighborhood guide — {selected.hood}</div>{hoodBio}</div>:null}
@@ -849,7 +850,7 @@ export default function RealEstateAI() {
           </div>
           <div className="feat-bar">
             <div className="feat-bar-inner">
-              {[{i:"✦",t:"AI listing writer",d:"Descriptions in seconds"},{i:"🖼",t:"AI photo finder",d:"Auto-find photos"},{i:"◎",t:"Natural search",d:"Search how you talk"},{i:"🗺",t:"Neighborhood guide",d:"AI insights every area"},{i:"📋",t:"Application helper",d:"AI cover letters"},{i:"⬡",t:"Smart pricing",d:"Market rent suggestions"}].map(f=>(
+              {[{i:"✦",t:"AI listing writer",d:"Descriptions in seconds"},{i:"🖼",t:"AI photo finder",d:"Auto-find photos"},{i:"◎",t:"Natural search",d:"Search how you talk"},{i:"🗺",t:"Neighborhood guide",d:"AI insights every area"},{i:"📋",t:"Application helper",d:"AI cover letters"},{i:"🌍",t:"Street View",d:"See every listing on Google Maps"}].map(f=>(
                 <div className="feat-item" key={f.t}><div className="feat-item-ico">{f.i}</div><div className="feat-item-t">{f.t}</div><div className="feat-item-d">{f.d}</div></div>
               ))}
             </div>
@@ -961,8 +962,7 @@ export default function RealEstateAI() {
           <div className="fgroup">
             <label className="flabel">Monthly rent ($)</label>
             <input className="finput" type="number" placeholder="e.g. 3200" value={newL.rent} onChange={e=>setNewL(p=>({...p,rent:e.target.value}))} />
-            <div className="btn-row"><button className="btn btn-ai" onClick={suggestPrice}>⬡ AI price suggestion</button></div>
-            {priceHint&&<div className="price-hint">✦ AI suggests: {priceHint}</div>}
+
           </div>
           <div className="fgroup">
             <label className="flabel">Photos</label>
